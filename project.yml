@@ -1,0 +1,35 @@
+name: HaldIPTV
+options:
+  bundleIdPrefix: com.arthuralend
+  deploymentTarget:
+    macOS: "13.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  HaldIPTV:
+    type: application
+    platform: macOS
+    sources:
+      - HaldIPTV/Sources
+      - HaldIPTV/Resources
+    info:
+      path: HaldIPTV/Info.plist
+      properties:
+        CFBundleDisplayName: Hald IPTV
+        CFBundleName: Hald IPTV
+        LSApplicationCategoryType: public.app-category.entertainment
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: Для воспроизведения IPTV-потоков в локальной сети.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.arthuralend.HaldIPTV
+        PRODUCT_NAME: Hald IPTV
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

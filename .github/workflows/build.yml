@@ -1,0 +1,53 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: brew install xcodegen create-dmg || true
+
+      - name: Generate project & pods
+        run: |
+          xcodegen generate
+          pod install
+
+      - name: Build (universal)
+        run: |
+          xcodebuild -workspace HaldIPTV.xcworkspace -scheme HaldIPTV -configuration Release \
+            -derivedDataPath build ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build | tail -60
+          test -d "build/Build/Products/Release/Hald IPTV.app"
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          APP="build/Build/Products/Release/Hald IPTV.app"
+          codesign --force --deep -s - "$APP"
+          ditto -c -k --keepParent "$APP" "dist/HaldIPTV.zip"
+          create-dmg --volname "Hald IPTV" --app-drop-link 450 180 --window-size 640 380 \
+            "dist/HaldIPTV.dmg" "$APP" || hdiutil create -volname "Hald IPTV" -srcfolder "$APP" -ov -format UDZO dist/HaldIPTV.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HaldIPTV
+          path: dist/*
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" dist/HaldIPTV.dmg dist/HaldIPTV.zip \
+            --title "Hald IPTV (сборка ${{ github.run_number }})" \
+            --notes "Автосборка из ${{ github.sha }}" --latest

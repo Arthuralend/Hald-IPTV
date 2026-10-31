@@ -1,0 +1,6 @@
+build/
+Pods/
+*.xcodeproj
+*.xcworkspace
+HaldIPTV/Info.plist
+.DS_Store
