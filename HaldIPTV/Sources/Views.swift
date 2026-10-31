@@ -9,21 +9,27 @@ struct ContentView: View {
     @State private var showAdd = false
     @State private var editing: Playlist?
     @AppStorage("gridMode") private var gridMode = false
-    @State private var columns: NavigationSplitViewVisibility = .all
 
     var visible: [Channel] { store.channels(for: sidebar ?? .all, search: search) }
 
+    @AppStorage("libraryWidth") private var libraryWidth: Double = 620
+    @State private var dragStart: Double?
+
     var body: some View {
-        // The player view is never re-created (re-parenting VLC's video view gives a black screen);
-        // "video only" just collapses the sidebar and channel list columns.
-        split
+        // Own layout instead of a 3-column NavigationSplitView: in "video only" mode the library
+        // (sidebar + channel list) is removed completely, while the player view keeps its identity
+        // (re-creating VLC's video view gives a black screen).
+        HStack(spacing: 0) {
+            if !store.videoOnly {
+                library
+                    .frame(width: libraryWidth)
+                divider
+            }
+            PlayerPane(next: { step(1) }, prev: { step(-1) })
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .ignoresSafeArea(edges: store.videoOnly ? .all : [])
         .toolbar(store.videoOnly ? .hidden : .visible, for: .windowToolbar)
-        .onChange(of: store.videoOnly) { v in
-            withAnimation(.easeInOut(duration: 0.2)) { columns = v ? .detailOnly : .all }
-        }
-        .onChange(of: columns) { c in
-            if c != .detailOnly && store.videoOnly { store.videoOnly = false }
-        }
         .sheet(isPresented: $showAdd) { PlaylistEditor(playlist: nil) }
         .sheet(item: $editing) { PlaylistEditor(playlist: $0) }
         .overlay(alignment: .bottom) {
@@ -42,16 +48,29 @@ struct ContentView: View {
         .onAppear { if store.playlists.isEmpty { showAdd = true } }
     }
 
-    var split: some View {
-        NavigationSplitView(columnVisibility: $columns) {
+    var divider: some View {
+        Rectangle()
+            .fill(Color(nsColor: .separatorColor))
+            .frame(width: 1)
+            .overlay(Color.clear.frame(width: 8).contentShape(Rectangle())
+                .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
+                .gesture(DragGesture(minimumDistance: 1)
+                    .onChanged { g in
+                        if dragStart == nil { dragStart = libraryWidth }
+                        libraryWidth = min(1100, max(440, (dragStart ?? libraryWidth) + g.translation.width))
+                    }
+                    .onEnded { _ in dragStart = nil }))
+    }
+
+    var library: some View {
+        NavigationSplitView {
             SidebarView(selection: $sidebar, showAdd: $showAdd, editing: $editing)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240)
-        } content: {
+                .navigationSplitViewColumnWidth(min: 190, ideal: 230)
+        } detail: {
             ChannelListView(channels: visible, gridMode: gridMode, isRecents: sidebar == .recents, play: play)
                 .navigationTitle((sidebar ?? .all).title)
                 .navigationSubtitle(L("%d каналов", visible.count))
                 .searchable(text: $search, placement: .toolbar, prompt: L("Поиск канала"))
-                .navigationSplitViewColumnWidth(min: 280, ideal: 360)
                 .toolbar {
                     ToolbarItemGroup {
                         if sidebar == .recents && !store.recents.isEmpty {
@@ -66,9 +85,6 @@ struct ContentView: View {
                             .help(L("Обновить плейлист"))
                     }
                 }
-        } detail: {
-            PlayerPane(next: { step(1) }, prev: { step(-1) })
-                .ignoresSafeArea()
         }
     }
 
