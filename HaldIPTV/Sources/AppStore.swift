@@ -45,7 +45,7 @@ final class AppStore: ObservableObject {
 
     // MARK: playlists
     func addPlaylist(name: String, source: String, epg: String?, userAgent: String?) {
-        let p = Playlist(name: name.isEmpty ? "Плейлист \(playlists.count + 1)" : name,
+        let p = Playlist(name: name.isEmpty ? L("Плейлист %d", playlists.count + 1) : name,
                          source: source, epgURL: epg?.isEmpty == true ? nil : epg,
                          userAgent: userAgent?.isEmpty == true ? nil : userAgent)
         playlists.append(p)
@@ -90,7 +90,7 @@ final class AppStore: ObservableObject {
         do {
             let text = try await fetchText(p)
             let result = M3UParser.parse(text)
-            guard !result.channels.isEmpty else { throw NSError(domain: "HaldIPTV", code: 1, userInfo: [NSLocalizedDescriptionKey: "В плейлисте не найдено каналов"]) }
+            guard !result.channels.isEmpty else { throw NSError(domain: "HaldIPTV", code: 1, userInfo: [NSLocalizedDescriptionKey: L("В плейлисте не найдено каналов")]) }
             apply(result.channels)
             save(result.channels, cacheName)
             if let i = playlists.firstIndex(where: { $0.id == p.id }) {
@@ -100,7 +100,7 @@ final class AppStore: ObservableObject {
             await loadEPG(p, result.epgURL)
         } catch {
             if let cached = load([Channel].self, cacheName), !cached.isEmpty { apply(cached) }
-            errorMessage = "Не удалось загрузить плейлист: \(error.localizedDescription)"
+            errorMessage = L("Не удалось загрузить плейлист: %@", error.localizedDescription)
         }
     }
 
@@ -163,6 +163,18 @@ final class AppStore: ObservableObject {
     func toggleFavorite(_ c: Channel) {
         if favorites.contains(c.id) { favorites.remove(c.id) } else { favorites.insert(c.id) }
         save(favorites, "favorites.json")
+    }
+
+    @Published var videoOnly = false
+
+    func clearRecents() {
+        recents = []
+        save(recents, "recents.json")
+    }
+
+    func removeFromRecents(_ c: Channel) {
+        recents.removeAll { $0 == c.id }
+        save(recents, "recents.json")
     }
 
     func markPlayed(_ c: Channel) {

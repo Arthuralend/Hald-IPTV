@@ -18,6 +18,8 @@ targets:
     info:
       path: HaldIPTV/Info.plist
       properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, ru]
         CFBundleDisplayName: Hald IPTV
         CFBundleName: Hald IPTV
         LSApplicationCategoryType: public.app-category.entertainment

@@ -51,9 +51,11 @@ actor LogoCache {
 }
 
 struct LogoView: View {
-    let url: String?
-    let name: String
+    let channel: Channel
     var size: CGFloat = 36
+    @AppStorage("useLogoDB") private var useLogoDB = true
+    @AppStorage("preferLogoDB") private var preferLogoDB = false
+    private var name: String { channel.name }
     @State private var image: NSImage?
 
     var body: some View {
@@ -68,9 +70,15 @@ struct LogoView: View {
             }
         }
         .frame(width: size, height: size)
-        .task(id: url) {
+        .task(id: channel.id + "\(useLogoDB)\(preferLogoDB)") {
             image = nil
-            if let url, !url.isEmpty { image = await LogoCache.shared.image(for: url) }
+            let own = channel.logo.flatMap { $0.isEmpty ? nil : $0 }
+            if !preferLogoDB, let own { image = await LogoCache.shared.image(for: own) }
+            if image == nil, useLogoDB || preferLogoDB,
+               let db = await LogoDatabase.shared.logoURL(name: channel.name, tvgId: channel.tvgId, tvgName: channel.tvgName) {
+                image = await LogoCache.shared.image(for: db)
+            }
+            if image == nil, preferLogoDB, let own { image = await LogoCache.shared.image(for: own) }
         }
     }
 

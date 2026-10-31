@@ -45,10 +45,10 @@ enum SidebarItem: Hashable {
 
     var title: String {
         switch self {
-        case .all: return "Все каналы"
-        case .favorites: return "Избранное"
-        case .recents: return "Недавние"
-        case .group(let g): return g
+        case .all: return L("Все каналы")
+        case .favorites: return L("Избранное")
+        case .recents: return L("Недавние")
+        case .group(let g): return L(g)
         }
     }
 }

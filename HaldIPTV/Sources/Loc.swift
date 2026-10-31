@@ -1,0 +1,82 @@
+import Foundation
+
+/// Simple runtime localization: Russian source strings, English translations.
+/// Russian is used when the system's preferred language is Russian, otherwise English.
+enum Loc {
+    static let isRussian: Bool = {
+        let lang = Locale.preferredLanguages.first?.lowercased() ?? "en"
+        return lang.hasPrefix("ru") || lang.hasPrefix("be") || lang.hasPrefix("uk") || lang.hasPrefix("kk")
+    }()
+
+    static let en: [String: String] = [
+        "Все каналы": "All Channels",
+        "Избранное": "Favorites",
+        "Недавние": "Recent",
+        "Без группы": "Ungrouped",
+        "Плейлист": "Playlist",
+        "Разделы": "Library",
+        "Группы": "Groups",
+        "Добавить": "Add",
+        "Изменить": "Edit",
+        "Поиск канала": "Search channels",
+        "Вид": "View",
+        "Обновить плейлист": "Refresh Playlist",
+        "Добавьте плейлист": "Add a playlist",
+        "Нет каналов": "No channels",
+        "Убрать из избранного": "Remove from Favorites",
+        "В избранное": "Add to Favorites",
+        "Копировать ссылку": "Copy Stream URL",
+        "Очистить недавние": "Clear Recent",
+        "Убрать из недавних": "Remove from Recent",
+        "Выберите канал": "Select a channel",
+        "Далее:": "Next:",
+        "Предыдущий канал (⌘↑)": "Previous channel (⌘↑)",
+        "Следующий канал (⌘↓)": "Next channel (⌘↓)",
+        "Поверх всех окон": "Keep on top",
+        "Полный экран канала": "Channel Full Screen",
+        "Полный экран программы": "App Full Screen",
+        "Только видео в окне": "Video only in window",
+        "Выйти из режима видео": "Exit video mode",
+        "Запись": "Record",
+        "Остановить запись": "Stop Recording",
+        "Открыть папку записей": "Show Recordings Folder",
+        "Аудиодорожка": "Audio track",
+        "Новый плейлист": "New Playlist",
+        "Название": "Name",
+        "Ссылка M3U / M3U8": "M3U / M3U8 URL",
+        "Файл…": "File…",
+        "EPG (XMLTV), необязательно": "EPG (XMLTV), optional",
+        "User-Agent, необязательно": "User-Agent, optional",
+        "Автообновление: каждые %d ч": "Auto-refresh: every %d h",
+        "Удалить": "Delete",
+        "Отмена": "Cancel",
+        "Сохранить": "Save",
+        "Буфер сети: %d мс": "Network buffer: %d ms",
+        "User-Agent по умолчанию": "Default User-Agent",
+        "Очистить кэш логотипов": "Clear Logo Cache",
+        "Логотипы из базы iptv-org для каналов без значка": "Fetch missing logos from iptv-org database",
+        "Всегда предпочитать логотипы из базы": "Always prefer database logos",
+        "Папка записей": "Recordings folder",
+        "Выбрать…": "Choose…",
+        "Воспроизведение": "Playback",
+        "Пауза / Продолжить": "Pause / Resume",
+        "Следующий канал": "Next Channel",
+        "Предыдущий канал": "Previous Channel",
+        "Без звука": "Mute",
+        "Подключение…": "Connecting…",
+        "Пауза": "Paused",
+        "Ошибка воспроизведения потока": "Stream playback error",
+        "Не удалось загрузить плейлист: %@": "Failed to load playlist: %@",
+        "В плейлисте не найдено каналов": "No channels found in playlist",
+        "%d каналов": "%d channels",
+        "Плейлист %d": "Playlist %d",
+        "Запись: %@": "Recording: %@",
+        "Запись сохранена в папку «Hald IPTV»": "Recording saved to the “Hald IPTV” folder",
+        "Не удалось начать запись": "Could not start recording",
+    ]
+
+    static func t(_ s: String) -> String { isRussian ? s : (en[s] ?? s) }
+}
+
+func L(_ s: String) -> String { Loc.t(s) }
+func L(_ s: String, _ args: CVarArg...) -> String { String(format: Loc.t(s), arguments: args) }
