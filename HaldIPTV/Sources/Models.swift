@@ -9,6 +9,14 @@ struct Channel: Identifiable, Hashable, Codable {
     var tvgId: String?
     var tvgName: String?
     var userAgent: String?
+    var catchup: String?
+    var catchupSource: String?
+    var catchupDays: Int?
+
+    var hasArchive: Bool {
+        guard let c = catchup?.lowercased(), !c.isEmpty, c != "0", c != "false" else { return false }
+        return true
+    }
 }
 
 struct Playlist: Identifiable, Codable, Hashable {

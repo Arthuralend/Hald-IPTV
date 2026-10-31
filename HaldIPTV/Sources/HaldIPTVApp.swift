@@ -21,6 +21,12 @@ struct HaldIPTVApp: App {
                 Button(L("Предыдущий канал")) { NotificationCenter.default.post(name: .channelStep, object: -1) }
                     .keyboardShortcut(.upArrow, modifiers: .command)
                 Divider()
+                Button(L("Назад на 30 с")) { player.rewind(30) }.keyboardShortcut(.leftArrow, modifiers: .command)
+                Button(L("Вперёд на 30 с")) { player.forward(30) }.keyboardShortcut(.rightArrow, modifiers: .command)
+                Button(L("Назад на 5 мин")) { player.rewind(300) }.keyboardShortcut(.leftArrow, modifiers: [.command, .shift])
+                Button(L("Вперёд на 5 мин")) { player.forward(300) }.keyboardShortcut(.rightArrow, modifiers: [.command, .shift])
+                Button(L("Вернуться в прямой эфир")) { player.goLive() }.keyboardShortcut("l", modifiers: .command)
+                Divider()
                 Button(L("Без звука")) { player.muted.toggle() }.keyboardShortcut("m", modifiers: .command)
                 Button(L("Полный экран канала")) { FullScreen.channel(store) }
                     .keyboardShortcut(.return, modifiers: .command)

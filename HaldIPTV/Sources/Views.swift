@@ -9,17 +9,20 @@ struct ContentView: View {
     @State private var showAdd = false
     @State private var editing: Playlist?
     @AppStorage("gridMode") private var gridMode = false
+    @State private var columns: NavigationSplitViewVisibility = .all
 
     var visible: [Channel] { store.channels(for: sidebar ?? .all, search: search) }
 
     var body: some View {
-        Group {
-            if store.videoOnly {
-                PlayerPane(next: { step(1) }, prev: { step(-1) })
-                    .ignoresSafeArea()
-            } else {
-                split
-            }
+        // The player view is never re-created (re-parenting VLC's video view gives a black screen);
+        // "video only" just collapses the sidebar and channel list columns.
+        split
+        .toolbar(store.videoOnly ? .hidden : .visible, for: .windowToolbar)
+        .onChange(of: store.videoOnly) { v in
+            withAnimation(.easeInOut(duration: 0.2)) { columns = v ? .detailOnly : .all }
+        }
+        .onChange(of: columns) { c in
+            if c != .detailOnly && store.videoOnly { store.videoOnly = false }
         }
         .sheet(isPresented: $showAdd) { PlaylistEditor(playlist: nil) }
         .sheet(item: $editing) { PlaylistEditor(playlist: $0) }
@@ -40,7 +43,7 @@ struct ContentView: View {
     }
 
     var split: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columns) {
             SidebarView(selection: $sidebar, showAdd: $showAdd, editing: $editing)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } content: {
@@ -65,6 +68,7 @@ struct ContentView: View {
                 }
         } detail: {
             PlayerPane(next: { step(1) }, prev: { step(-1) })
+                .ignoresSafeArea()
         }
     }
 
@@ -290,6 +294,7 @@ struct PlayerPane: View {
                 }
                 Spacer()
             }
+            seekBar(c, now: now)
             HStack(spacing: 14) {
                 Button(action: prev) { Image(systemName: "backward.end.fill") }.help(L("Предыдущий канал (⌘↑)"))
                 Button { player.togglePause() } label: { Image(systemName: player.isPlaying ? "pause.fill" : "play.fill") }
@@ -336,6 +341,40 @@ struct PlayerPane: View {
         .foregroundStyle(.white)
         .padding(14)
         .background(LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .top, endPoint: .bottom))
+    }
+
+    func seekBar(_ c: Channel, now: Programme?) -> some View {
+        let behind = Int(player.behindLive)
+        return HStack(spacing: 12) {
+            Button { player.rewind(300) } label: { Image(systemName: "gobackward.minus") }.help(L("Назад на 5 мин"))
+            Button { player.rewind(30) } label: { Image(systemName: "gobackward.30") }.help(L("Назад на 30 с (⌘←)"))
+            Button { player.forward(30) } label: { Image(systemName: "goforward.30") }.help(L("Вперёд на 30 с (⌘→)"))
+                .disabled(player.isLive)
+            Button { player.forward(300) } label: { Image(systemName: "goforward.plus") }.help(L("Вперёд на 5 мин"))
+                .disabled(player.isLive)
+            if let now, c.hasArchive {
+                Button { player.playArchive(c, from: now.start) } label: {
+                    Image(systemName: "backward.to.line")
+                }.help(L("С начала передачи"))
+            }
+            Button { player.goLive() } label: {
+                HStack(spacing: 5) {
+                    Circle().fill(player.isLive ? Color.red : Color.gray).frame(width: 8, height: 8)
+                    Text(player.isLive ? L("ЭФИР") : "−" + hms(behind)).font(.system(.caption, design: .monospaced).bold())
+                }
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(.white.opacity(player.isLive ? 0.1 : 0.25), in: Capsule())
+            }.help(L("Вернуться в прямой эфир"))
+            if !player.isLive {
+                Text(time(player.positionDate)).font(.caption.monospacedDigit()).opacity(0.8)
+            }
+        }
+        .buttonStyle(.borderless)
+        .font(.body)
+    }
+
+    func hms(_ s: Int) -> String {
+        s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%02d:%02d", s / 60, s % 60)
     }
 
     func time(_ d: Date) -> String {

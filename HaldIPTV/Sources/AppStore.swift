@@ -62,7 +62,7 @@ final class AppStore: ObservableObject {
 
     func removePlaylist(_ p: Playlist) {
         playlists.removeAll { $0.id == p.id }
-        try? FileManager.default.removeItem(at: dir.appendingPathComponent("channels-\(p.id).json"))
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent("channels-v2-\(p.id).json"))
         savePlaylists()
         if selectedPlaylistID == p.id { select(playlists.first?.id) }
     }
@@ -77,7 +77,7 @@ final class AppStore: ObservableObject {
     func refresh() { if let p = selectedPlaylist { Task { await open(p, forceRefresh: true) } } }
 
     func open(_ p: Playlist, forceRefresh: Bool) async {
-        let cacheName = "channels-\(p.id).json"
+        let cacheName = "channels-v2-\(p.id).json"
         let stale = p.lastUpdated.map { Date().timeIntervalSince($0) > Double(p.autoRefreshHours) * 3600 } ?? true
         if !forceRefresh, !stale, let cached = load([Channel].self, cacheName), !cached.isEmpty {
             apply(cached)

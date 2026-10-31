@@ -15,6 +15,7 @@ enum M3UParser {
         var pendingName: String?
         var pendingGroup: String?
         var pendingUA: String?
+        var headerAttrs: [String: String] = [:]
 
         let lines = text.replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
@@ -25,6 +26,7 @@ enum M3UParser {
             if line.isEmpty { continue }
             if line.hasPrefix("#EXTM3U") {
                 let a = attributes(in: line)
+                headerAttrs = a
                 epg = a["url-tvg"] ?? a["x-tvg-url"] ?? a["tvg-url"]
                 if let e = epg, e.contains(",") { epg = e.components(separatedBy: ",").first }
             } else if line.hasPrefix("#EXTINF") {
@@ -46,9 +48,18 @@ enum M3UParser {
                 var group = pendingAttrs["group-title"] ?? pendingGroup ?? noGroup
                 if group.trimmingCharacters(in: .whitespaces).isEmpty { group = noGroup }
                 let logo = pendingAttrs["tvg-logo"].flatMap { $0.isEmpty ? nil : $0 }
-                channels.append(Channel(name: name, url: line, logo: logo, group: group,
-                                        tvgId: pendingAttrs["tvg-id"], tvgName: pendingAttrs["tvg-name"],
-                                        userAgent: pendingUA ?? pendingAttrs["user-agent"]))
+                let a = pendingAttrs
+                let rec: String? = a["timeshift"] ?? a["tvg-rec"]
+                var catchup: String? = a["catchup"] ?? a["catchup-type"] ?? headerAttrs["catchup"]
+                if catchup == nil, let r = rec, r != "0", !r.isEmpty { catchup = "shift" }
+                let daysText: String = a["catchup-days"] ?? rec ?? headerAttrs["catchup-days"] ?? ""
+                var ch = Channel(name: name, url: line, logo: logo, group: group,
+                                 tvgId: a["tvg-id"], tvgName: a["tvg-name"],
+                                 userAgent: pendingUA ?? a["user-agent"])
+                ch.catchup = catchup
+                ch.catchupSource = a["catchup-source"] ?? headerAttrs["catchup-source"]
+                ch.catchupDays = Int(daysText)
+                channels.append(ch)
                 pendingAttrs = [:]; pendingName = nil; pendingGroup = nil; pendingUA = nil
             }
         }

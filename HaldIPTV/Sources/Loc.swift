@@ -73,6 +73,17 @@ enum Loc {
         "Запись: %@": "Recording: %@",
         "Запись сохранена в папку «Hald IPTV»": "Recording saved to the “Hald IPTV” folder",
         "Не удалось начать запись": "Could not start recording",
+        "Архив недоступен для этого канала": "Archive is not available for this channel",
+        "Назад на 30 с (⌘←)": "Back 30 s (⌘←)",
+        "Вперёд на 30 с (⌘→)": "Forward 30 s (⌘→)",
+        "Назад на 5 мин": "Back 5 min",
+        "Вперёд на 5 мин": "Forward 5 min",
+        "С начала передачи": "Start Over",
+        "Вернуться в прямой эфир": "Back to Live",
+        "Перемотка": "Seek",
+        "Назад на 30 с": "Back 30 s",
+        "Вперёд на 30 с": "Forward 30 s",
+        "ЭФИР": "LIVE",
     ]
 
     static func t(_ s: String) -> String { isRussian ? s : (en[s] ?? s) }

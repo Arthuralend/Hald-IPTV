@@ -32,8 +32,69 @@ final class PlayerController: NSObject, ObservableObject, VLCMediaPlayerDelegate
         player.audio?.volume = 80
     }
 
+    // MARK: archive / timeshift
+    @Published var archiveStart: Date?          // nil = live
+    private var currentChannel: Channel?
+    private var currentUA: String?
+
+    var isLive: Bool { archiveStart == nil }
+
+    /// Wall-clock moment currently on screen
+    var positionDate: Date {
+        guard let a = archiveStart else { return Date() }
+        let ms = Double(player.time.intValue)
+        return a.addingTimeInterval(max(0, ms / 1000))
+    }
+
+    var behindLive: TimeInterval { max(0, Date().timeIntervalSince(positionDate)) }
+
     func play(_ c: Channel, playlistUA: String?) {
-        guard let url = URL(string: c.url) else { return }
+        archiveStart = nil
+        currentChannel = c
+        currentUA = playlistUA
+        open(c.url, channel: c)
+    }
+
+    func rewind(_ seconds: TimeInterval) {
+        guard let c = currentChannel else { return }
+        let target = positionDate.addingTimeInterval(-seconds)
+        if c.hasArchive {
+            let limit = Date().addingTimeInterval(-Double(c.catchupDays ?? 7) * 86400)
+            playArchive(c, from: max(target, limit))
+        } else if player.isSeekable {
+            player.jumpBackward(Int32(seconds))
+        } else {
+            flash(L("Архив недоступен для этого канала"))
+        }
+    }
+
+    func forward(_ seconds: TimeInterval) {
+        guard let c = currentChannel else { return }
+        if isLive {
+            if player.isSeekable { player.jumpForward(Int32(seconds)) }
+            return
+        }
+        let target = positionDate.addingTimeInterval(seconds)
+        if target > Date().addingTimeInterval(-15) { goLive() } else { playArchive(c, from: target) }
+    }
+
+    func goLive() {
+        guard let c = currentChannel else { return }
+        play(c, playlistUA: currentUA)
+    }
+
+    func playArchive(_ c: Channel, from start: Date) {
+        guard let url = Catchup.url(for: c, start: start) else {
+            flash(L("Архив недоступен для этого канала")); return
+        }
+        currentChannel = c
+        archiveStart = start
+        open(url, channel: c)
+    }
+
+    private func open(_ urlString: String, channel c: Channel) {
+        guard let url = URL(string: urlString) else { return }
+        let playlistUA = currentUA
         if isRecording { stopRecording() }
         player.stop()
         let media = VLCMedia(url: url)
