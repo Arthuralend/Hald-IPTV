@@ -69,7 +69,7 @@ public partial class MainWindow : Window
             if (overlayWindow != null && overlayWindow != this) overlayWindow.PreviewKeyDown += Window_PreviewKeyDown;
         };
         PreviewKeyDown += Window_PreviewKeyDown;
-        Closing += (_, _) => { if (_recording) StopRecording(); _mp.Stop(); SaveSettings(); };
+        Closing += (_, _) => { if (_recording) StopRecording(silentRestart: false); _mp.Stop(); SaveSettings(); };
 
         _timer.Tick += (_, _) => Tick();
         _timer.Start();
