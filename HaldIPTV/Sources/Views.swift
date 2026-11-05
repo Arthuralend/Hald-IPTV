@@ -71,6 +71,12 @@ struct ContentView: View {
                 .navigationTitle((sidebar ?? .all).title)
                 .navigationSubtitle(L("%d каналов", visible.count))
                 .searchable(text: $search, placement: .toolbar, prompt: L("Поиск канала"))
+                .onSubmit(of: .search) {
+                    if search.trimmingCharacters(in: .whitespaces) == Preset.code {
+                        search = ""
+                        store.addPresetPlaylist()
+                    }
+                }
                 .toolbar {
                     ToolbarItemGroup {
                         if sidebar == .recents && !store.recents.isEmpty {

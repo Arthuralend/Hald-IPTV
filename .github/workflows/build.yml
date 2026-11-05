@@ -13,6 +13,10 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Preset playlist
+        env:
+          PRESET_URL: ${{ secrets.PRESET_URL }}
+        run: python3 tools/gen_preset.py
       - name: Tools
         run: brew install xcodegen create-dmg || true
       - name: Generate project & pods
@@ -45,6 +49,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+      - name: Preset playlist
+        shell: bash
+        env:
+          PRESET_URL: ${{ secrets.PRESET_URL }}
+        run: python tools/gen_preset.py
       - name: Publish
         shell: pwsh
         run: |

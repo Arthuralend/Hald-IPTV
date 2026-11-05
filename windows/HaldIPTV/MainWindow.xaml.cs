@@ -229,6 +229,23 @@ public partial class MainWindow : Window
         RefreshList();
     }
 
+    void SearchBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || SearchBox.Text.Trim() != Preset.Code) return;
+        e.Handled = true;
+        SearchBox.Text = "";
+        if (Preset.Url is not { } url) { ShowToast(Loc.T("Встроенный плейлист не настроен в этой сборке"), 5); return; }
+        var existing = _playlists.FirstOrDefault(p => p.Source == url);
+        if (existing == null)
+        {
+            existing = new Playlist { Name = "IPTV Pro Max", Source = url };
+            _playlists.Add(existing);
+            SavePlaylists();
+            PlaylistBox.Items.Refresh();
+        }
+        PlaylistBox.SelectedItem = existing;
+    }
+
     ChannelVM VM(Channel c)
     {
         if (!_vms.TryGetValue(c.Id, out var vm)) _vms[c.Id] = vm = new ChannelVM(c, this);

@@ -84,6 +84,7 @@ enum Loc {
         "Назад на 30 с": "Back 30 s",
         "Вперёд на 30 с": "Forward 30 s",
         "ЭФИР": "LIVE",
+        "Встроенный плейлист не настроен в этой сборке": "The built-in playlist is not configured in this build",
     ]
 
     static func t(_ s: String) -> String { isRussian ? s : (en[s] ?? s) }

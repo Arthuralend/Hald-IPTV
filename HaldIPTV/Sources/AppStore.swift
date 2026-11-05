@@ -53,6 +53,22 @@ final class AppStore: ObservableObject {
         select(p.id)
     }
 
+    /// Hidden preset: typing the code in search adds the built-in playlist.
+    func addPresetPlaylist() {
+        guard let url = Preset.url else {
+            errorMessage = L("Встроенный плейлист не настроен в этой сборке")
+            return
+        }
+        if let existing = playlists.first(where: { $0.source == url }) {
+            select(existing.id)
+        } else {
+            addPlaylist(name: "IPTV Pro Max", source: url, epg: nil, userAgent: nil)
+        }
+        presetAdded += 1
+    }
+
+    @Published var presetAdded = 0
+
     func updatePlaylist(_ p: Playlist) {
         guard let i = playlists.firstIndex(where: { $0.id == p.id }) else { return }
         playlists[i] = p

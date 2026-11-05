@@ -108,6 +108,7 @@ public static class Loc
         ["Предыдущий канал"] = "Previous channel", ["Следующий канал"] = "Next channel",
         ["Пауза / Продолжить"] = "Pause / Resume", ["Без звука"] = "Mute", ["Аудиодорожка"] = "Audio track",
         ["Поверх всех окон"] = "Keep on top", ["Список"] = "List", ["Сетка"] = "Grid",
+        ["Встроенный плейлист не настроен в этой сборке"] = "The built-in playlist is not configured in this build",
     };
 
     public static string T(string s) => IsRussian ? s : (En.TryGetValue(s, out var e) ? e : s);
