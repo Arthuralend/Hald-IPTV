@@ -11,6 +11,9 @@ struct HaldIPTVApp: App {
                 .environmentObject(store)
                 .environmentObject(player)
                 .frame(minWidth: 1000, minHeight: 600)
+                .preferredColorScheme(.dark)
+                .tint(Theme.orange)
+                .background(Theme.background)
         }
         .commands {
             CommandMenu(L("Воспроизведение")) {
@@ -44,6 +47,6 @@ struct HaldIPTVApp: App {
                 Button(L("Обновить плейлист")) { store.refresh() }.keyboardShortcut("r", modifiers: .command)
             }
         }
-        Settings { SettingsView() }
+        Settings { SettingsView().preferredColorScheme(.dark).tint(Theme.orange) }
     }
 }

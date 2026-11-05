@@ -50,7 +50,7 @@ struct ContentView: View {
 
     var divider: some View {
         Rectangle()
-            .fill(Color(nsColor: .separatorColor))
+            .fill(Theme.orange.opacity(0.35))
             .frame(width: 1)
             .overlay(Color.clear.frame(width: 8).contentShape(Rectangle())
                 .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
@@ -141,6 +141,8 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background(Theme.sidebar)
     }
 }
 
@@ -155,7 +157,7 @@ struct ChannelListView: View {
         Group {
             if channels.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "tv.slash").font(.largeTitle).foregroundStyle(.secondary)
+                    Image(systemName: "tv.slash").font(.largeTitle).foregroundStyle(Theme.orange)
                     Text(store.playlists.isEmpty ? L("Добавьте плейлист") : L("Нет каналов")).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if gridMode {
@@ -168,8 +170,10 @@ struct ChannelListView: View {
                             }
                             .frame(maxWidth: .infinity, minHeight: 120)
                             .padding(6)
-                            .background(store.current == c ? Color.accentColor.opacity(0.25) : Color.gray.opacity(0.08),
-                                        in: RoundedRectangle(cornerRadius: 10))
+                            .background(store.current == c ? Theme.orange.opacity(0.22) : Theme.card,
+                                        in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12)
+                                .stroke(store.current == c ? Theme.orange : Theme.line, lineWidth: store.current == c ? 2 : 1))
                             .contentShape(Rectangle())
                             .onTapGesture { play(c) }
                             .contextMenu { menu(c) }
@@ -182,9 +186,12 @@ struct ChannelListView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { play(c) }
                         .contextMenu { menu(c) }
+                        .listRowBackground(store.current == c ? Theme.orange.opacity(0.18) : Color.clear)
                 }
+                .scrollContentBackground(.hidden)
             }
         }
+        .background(Theme.panel)
     }
 
     @ViewBuilder func menu(_ c: Channel) -> some View {
@@ -214,16 +221,16 @@ struct ChannelRow: View {
                 HStack {
                     Text(channel.name).fontWeight(isCurrent ? .bold : .regular).lineLimit(1)
                     if store.favorites.contains(channel.id) {
-                        Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption2)
+                        Image(systemName: "star.fill").foregroundStyle(Theme.orange).font(.caption2)
                     }
                 }
                 if let now {
                     Text(now.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    ProgressView(value: now.progress()).controlSize(.mini).tint(.accentColor)
+                    ProgressView(value: now.progress()).controlSize(.mini).tint(Theme.orange)
                 }
             }
             Spacer()
-            if isCurrent { Image(systemName: "speaker.wave.2.fill").foregroundStyle(Color.accentColor) }
+            if isCurrent { Image(systemName: "speaker.wave.2.fill").foregroundStyle(Theme.orange) }
         }
         .padding(.vertical, 2)
     }
@@ -252,11 +259,11 @@ struct PlayerPane: View {
                 VLCVideoContainer(controller: player)
                 if store.current == nil {
                     VStack(spacing: 10) {
-                        Image(systemName: "play.tv").font(.system(size: 54))
-                        Text(L("Выберите канал"))
-                    }.foregroundStyle(.gray)
+                        Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 140, height: 140).opacity(0.9)
+                        Text(L("Выберите канал")).font(.title3).foregroundStyle(Theme.textDim)
+                    }
                 }
-                if player.isBuffering { ProgressView().controlSize(.large).tint(.white) }
+                if player.isBuffering { ProgressView().controlSize(.large).tint(Theme.orange) }
                 if !player.statusText.isEmpty && !player.isBuffering {
                     Text(player.statusText).foregroundStyle(.white).padding(8).background(.black.opacity(0.6), in: Capsule())
                 }
@@ -304,7 +311,7 @@ struct PlayerPane: View {
                     Text(c.name).font(.headline)
                     if let now {
                         Text("\(time(now.start))–\(time(now.stop))  \(now.title)").font(.caption)
-                        ProgressView(value: now.progress()).frame(maxWidth: 260).tint(.white)
+                        ProgressView(value: now.progress()).frame(maxWidth: 260).tint(Theme.orange)
                     }
                     if let nextP { Text("\(L("Далее:")) \(time(nextP.start)) \(nextP.title)").font(.caption2).opacity(0.7) }
                 }
@@ -375,7 +382,7 @@ struct PlayerPane: View {
             }
             Button { player.goLive() } label: {
                 HStack(spacing: 5) {
-                    Circle().fill(player.isLive ? Color.red : Color.gray).frame(width: 8, height: 8)
+                    Circle().fill(player.isLive ? Theme.orange : Color.gray).frame(width: 8, height: 8)
                     Text(player.isLive ? L("ЭФИР") : "−" + hms(behind)).font(.system(.caption, design: .monospaced).bold())
                 }
                 .padding(.horizontal, 8).padding(.vertical, 3)

@@ -88,7 +88,7 @@ struct LogoView: View {
     }
 
     private var color: Color {
-        let palette: [Color] = [.blue, .purple, .pink, .orange, .teal, .indigo, .green, .red]
+        let palette: [Color] = [Theme.orange, Theme.orangeDeep, Color(red: 0.36, green: 0.62, blue: 0.75), Color(red: 0.42, green: 0.43, blue: 0.46)]
         let h = name.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xffff }
         return palette[h % palette.count]
     }
