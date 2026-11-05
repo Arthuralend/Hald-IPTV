@@ -4,3 +4,7 @@ Pods/
 *.xcworkspace
 HaldIPTV/Info.plist
 .DS_Store
+bin/
+obj/
+out/
+dist/

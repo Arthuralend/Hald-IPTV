@@ -1,4 +1,4 @@
-name: Build macOS app
+name: Build IPTV Pro Max
 
 on:
   push:
@@ -9,45 +9,76 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  macos:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-
       - name: Tools
         run: brew install xcodegen create-dmg || true
-
       - name: Generate project & pods
         run: |
           xcodegen generate
           pod install
-
       - name: Build (universal)
         run: |
           xcodebuild -workspace HaldIPTV.xcworkspace -scheme HaldIPTV -configuration Release \
             -derivedDataPath build ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build | tail -60
-          test -d "build/Build/Products/Release/Hald IPTV.app"
-
+          test -d "build/Build/Products/Release/IPTV Pro Max.app"
       - name: Package
         run: |
           mkdir -p dist
-          APP="build/Build/Products/Release/Hald IPTV.app"
+          APP="build/Build/Products/Release/IPTV Pro Max.app"
           codesign --force --deep -s - "$APP"
-          ditto -c -k --keepParent "$APP" "dist/HaldIPTV.zip"
-          create-dmg --volname "Hald IPTV" --app-drop-link 450 180 --window-size 640 380 \
-            "dist/HaldIPTV.dmg" "$APP" || hdiutil create -volname "Hald IPTV" -srcfolder "$APP" -ov -format UDZO dist/HaldIPTV.dmg
-
+          ditto -c -k --keepParent "$APP" "dist/IPTV-Pro-Max-macOS.zip"
+          create-dmg --volname "IPTV Pro Max" --app-drop-link 450 180 --window-size 640 380 \
+            "dist/IPTV-Pro-Max.dmg" "$APP" || hdiutil create -volname "IPTV Pro Max" -srcfolder "$APP" -ov -format UDZO dist/IPTV-Pro-Max.dmg
       - uses: actions/upload-artifact@v4
         with:
-          name: HaldIPTV
+          name: macos
           path: dist/*
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish windows/HaldIPTV/HaldIPTV.csproj -c Release -r win-x64 --self-contained true -o out/win
+          if (!(Test-Path out/win/HaldIPTV.exe)) { throw "build failed" }
+      - name: Package
+        shell: pwsh
+        env:
+          APP_VERSION: "1.0.${{ github.run_number }}"
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path out/win/* -DestinationPath dist/IPTV-Pro-Max-Windows.zip
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc windows/installer.iss
+          if (!(Test-Path dist/IPTV-Pro-Max-Setup.exe)) { throw "installer failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  release:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="build-${{ github.run_number }}"
-          gh release create "$TAG" dist/HaldIPTV.dmg dist/HaldIPTV.zip \
-            --title "Hald IPTV (сборка ${{ github.run_number }})" \
-            --notes "Автосборка из ${{ github.sha }}" --latest
+          gh release create "$TAG" dist/* -R "${{ github.repository }}" \
+            --title "IPTV Pro Max (сборка ${{ github.run_number }})" \
+            --notes "macOS: IPTV-Pro-Max.dmg · Windows: IPTV-Pro-Max-Setup.exe (или ZIP без установки)" --latest

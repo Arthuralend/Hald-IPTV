@@ -71,7 +71,7 @@ enum Loc {
         "%d каналов": "%d channels",
         "Плейлист %d": "Playlist %d",
         "Запись: %@": "Recording: %@",
-        "Запись сохранена в папку «Hald IPTV»": "Recording saved to the “Hald IPTV” folder",
+        "Запись сохранена в папку «IPTV Pro Max»": "Recording saved to the “IPTV Pro Max” folder",
         "Не удалось начать запись": "Could not start recording",
         "Архив недоступен для этого канала": "Archive is not available for this channel",
         "Назад на 30 с (⌘←)": "Back 30 s (⌘←)",

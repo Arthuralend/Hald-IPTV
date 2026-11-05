@@ -121,7 +121,7 @@ final class PlayerController: NSObject, ObservableObject, VLCMediaPlayerDelegate
             return URL(fileURLWithPath: custom, isDirectory: true)
         }
         return FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Hald IPTV", isDirectory: true)
+            .appendingPathComponent("IPTV Pro Max", isDirectory: true)
     }
 
     func toggleRecording() { isRecording ? stopRecording() : startRecording() }
@@ -140,7 +140,7 @@ final class PlayerController: NSObject, ObservableObject, VLCMediaPlayerDelegate
         _ = player.stopRecording()
         isRecording = false
         recordStart = nil
-        flash(L("Запись сохранена в папку «Hald IPTV»"))
+        flash(L("Запись сохранена в папку «IPTV Pro Max»"))
     }
 
     func showRecordings() {
