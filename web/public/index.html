@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1F21">
+<meta name="referrer" content="no-referrer">
+<title>IPTV Pro Max</title>
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/logo.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand"><img src="/logo.png" alt=""><span>IPTV Pro Max</span></div>
+    <nav id="sections"></nav>
+  </aside>
+
+  <section id="list">
+    <header>
+      <button id="menuBtn" class="icon-btn mobile-only" aria-label="Menu">☰</button>
+      <div class="titles">
+        <h1 id="sectionTitle"></h1>
+        <div id="sectionCount" class="dim"></div>
+      </div>
+      <div class="view-toggle">
+        <button id="listModeBtn" class="icon-btn" aria-label="List">☰</button>
+        <button id="gridModeBtn" class="icon-btn" aria-label="Grid">▦</button>
+        <button id="clearRecentsBtn" class="icon-btn hidden" aria-label="Clear">🗑</button>
+      </div>
+    </header>
+    <input id="search" type="search" autocomplete="off">
+    <div id="channels"></div>
+  </section>
+
+  <main id="player">
+    <div id="stage">
+      <video id="video" playsinline></video>
+      <div id="placeholder"><img src="/logo.png" alt=""><div id="placeholderText"></div></div>
+      <div id="status" class="hidden"></div>
+      <div id="toast" class="hidden"></div>
+      <div id="controls" class="hidden">
+        <div class="info">
+          <div id="curLogo" class="logo"></div>
+          <div>
+            <div id="curName" class="cur-name"></div>
+            <div id="curGroup" class="dim small"></div>
+          </div>
+        </div>
+        <div class="row seek">
+          <button data-act="back300">« 5:00</button>
+          <button data-act="back30">« 30</button>
+          <button data-act="fwd30">30 »</button>
+          <button data-act="fwd300">5:00 »</button>
+          <button data-act="live" id="liveBtn"><span class="dot"></span><span id="liveText"></span></button>
+          <span id="posText" class="dim small"></span>
+        </div>
+        <div class="row main">
+          <button data-act="prev" class="icon">⏮</button>
+          <button data-act="play" class="icon" id="playBtn">⏸</button>
+          <button data-act="next" class="icon">⏭</button>
+          <button data-act="fav" class="icon" id="favBtn">☆</button>
+          <span class="spacer"></span>
+          <button data-act="mute" class="icon" id="muteBtn">🔊</button>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8">
+          <button data-act="full" class="icon" id="fullBtn">⛶</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="login" class="hidden">
+  <form id="loginForm">
+    <img src="/logo.png" alt="">
+    <h2>IPTV Pro Max</h2>
+    <input id="password" type="password" autocomplete="current-password">
+    <button type="submit" id="loginBtn"></button>
+    <div id="loginErr" class="err hidden"></div>
+  </form>
+</div>
+
+<script src="/hls.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

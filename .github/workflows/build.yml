@@ -3,6 +3,7 @@ name: Build IPTV Pro Max
 on:
   push:
     branches: [main]
+    paths-ignore: ['web/**']
   workflow_dispatch:
 
 permissions:
