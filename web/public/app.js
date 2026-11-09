@@ -28,6 +28,9 @@
   let current = null;
   let archiveStart = null;   // unix seconds; null = live
   let hls = null;
+  let directAllowed = false;
+  let useDirect = store.get('direct', true);
+  let fallbackTimer = null;
   const video = $('video');
 
   // ───────── helpers ─────────
@@ -64,6 +67,7 @@
     const r = await fetch('/api/channels', { cache: 'no-store' });
     if (r.status === 401) return showLogin();
     const data = await r.json();
+    directAllowed = !!data.direct;
     channels = data.channels.map(c => ({ ...c, group: c.group || T('Без группы') }));
     byId = new Map(channels.map(c => [c.id, c]));
     renderSections(); renderList();
@@ -177,29 +181,64 @@
     if (section.kind === 'recent') renderSections();
   }
 
-  function streamUrl() {
-    return `/play/${current.id}.m3u8` + (archiveStart ? `?start=${archiveStart}` : '');
+  // Direct mode works only on an http page (provider streams are http) and is tried first;
+  // if nothing plays within a few seconds the player switches to the server proxy.
+  function canDirect() { return directAllowed && useDirect && location.protocol === 'http:'; }
+  function streamUrl(direct) {
+    const q = new URLSearchParams();
+    if (archiveStart) q.set('start', archiveStart);
+    if (direct) q.set('direct', '1');
+    const qs = q.toString();
+    return `/play/${current.id}.m3u8` + (qs ? '?' + qs : '');
   }
 
-  function load_(autoplay = true) {
+  function load_(autoplay = true, forceProxy = false) {
     if (!current) return;
     status(T('Подключение…'));
-    const src = streamUrl();
+    clearTimeout(fallbackTimer);
+    const direct = !forceProxy && canDirect();
+    const src = streamUrl(direct);
+    const id = current.id, arch = archiveStart;
     if (hls) { hls.destroy(); hls = null; }
-    if (window.Hls && Hls.isSupported()) {
-      hls = new Hls({ liveSyncDurationCount: 3, maxBufferLength: 30, enableWorker: true });
+    video.removeAttribute('src');
+    const native = video.canPlayType('application/vnd.apple.mpegurl');
+    // Safari / iPhone: native HLS follows the redirect and plays straight from the provider.
+    if (native && (direct || !(window.Hls && Hls.isSupported()))) {
+      video.src = src;
+      if (autoplay) play();
+    } else if (window.Hls && Hls.isSupported()) {
+      hls = new Hls({
+        enableWorker: true,
+        startFragPrefetch: true,          // start loading the first segment while the manifest is parsed
+        liveSyncDurationCount: 3,
+        maxBufferLength: 20,
+        backBufferLength: 30,
+        manifestLoadingTimeOut: 8000,
+        fragLoadingTimeOut: 15000,
+        abrEwmaDefaultEstimate: 3000000,
+      });
       hls.loadSource(src);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => { if (autoplay) play(); });
       hls.on(Hls.Events.ERROR, (_, d) => {
         if (!d.fatal) return;
-        if (d.type === Hls.ErrorTypes.NETWORK_ERROR) { setTimeout(() => hls && hls.startLoad(), 1500); }
+        if (direct) return fallback();
+        if (d.type === Hls.ErrorTypes.NETWORK_ERROR) setTimeout(() => hls && hls.startLoad(), 1500);
         else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
         else status(T('Ошибка воспроизведения'));
       });
     } else {
-      video.src = src;                       // Safari / iOS play HLS natively
+      video.src = src;
       if (autoplay) play();
+    }
+    function fallback() {
+      clearTimeout(fallbackTimer); fallbackTimer = null;
+      if (current && current.id === id && archiveStart === arch && !forceProxy) load_(autoplay, true);
+    }
+    if (direct) {
+      fallbackTimer = setTimeout(() => { if (video.readyState < 3) fallback(); }, 4000);
+      video.addEventListener('error', fallback, { once: true });
+      video.addEventListener('playing', () => { clearTimeout(fallbackTimer); fallbackTimer = null; }, { once: true });
     }
   }
 
@@ -214,7 +253,7 @@
   video.addEventListener('playing', () => { status(null); $('playBtn').textContent = '⏸'; });
   video.addEventListener('pause', () => { $('playBtn').textContent = '▶'; });
   video.addEventListener('waiting', () => status(T('Подключение…')));
-  video.addEventListener('error', () => status(T('Ошибка воспроизведения')));
+  video.addEventListener('error', () => { if (!fallbackTimer) status(T('Ошибка воспроизведения')); });
 
   function step(d) {
     const list = visible.length ? visible : channels;

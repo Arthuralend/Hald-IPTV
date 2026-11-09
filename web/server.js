@@ -14,6 +14,7 @@ const PRESET_URL = (process.env.PRESET_URL || '').trim();          // http(s) UR
 const SECRET = process.env.SECRET || crypto.randomBytes(32).toString('hex');
 const SITE_PASSWORD = process.env.SITE_PASSWORD || '';              // empty = open site
 const UPSTREAM_UA = process.env.USER_AGENT || 'VLC/3.0.21 LibVLC/3.0.21';
+const DIRECT = process.env.DIRECT !== '0';                          // allow direct-from-provider playback
 const REFRESH_HOURS = +(process.env.REFRESH_HOURS || 6);
 const TOKEN_TTL = 4 * 3600 * 1000;                                  // proxied links live 4 h
 const PUBLIC = path.join(__dirname, 'public');
@@ -151,32 +152,101 @@ const logos = (() => {
   return { load, attach };
 })();
 
-// ───────────── HLS proxy ─────────────
+// ───────────── HLS proxy (fast start) ─────────────
+// 1) remembers where the provider redirects a channel, so the next start skips the redirect;
+// 2) when a media playlist is served, the newest segments are pre-fetched into memory,
+//    so by the time the player asks for them they are already on the server;
+// 3) playlists are rewritten with encrypted, expiring links (encryption costs microseconds).
+const redirects = new Map();          // original url -> { url, t }
+const REDIRECT_TTL = 10 * 60e3;
+const segCache = new Map();           // upstream url -> { p: Promise<{buf,ct}>, t, size }
+const SEG_TTL = 90e3;
+const SEG_MAX_BYTES = 256 * 1024 * 1024;
+const PREFETCH = 3;
+let segBytes = 0;
+
+function isPlaylistUrl(u) { try { return /\.m3u8?$/i.test(new URL(u).pathname); } catch { return false; } }
+
+function cacheSweep() {
+  const now = Date.now();
+  for (const [k, v] of segCache) {
+    if (now - v.t > SEG_TTL || segBytes > SEG_MAX_BYTES) { segCache.delete(k); segBytes -= v.size; }
+    else if (segBytes <= SEG_MAX_BYTES) break;   // Map keeps insertion order: oldest first
+  }
+}
+setInterval(cacheSweep, 15e3).unref();
+
+function prefetch(url) {
+  if (segCache.has(url)) return segCache.get(url).p;
+  const entry = { t: Date.now(), size: 0, p: null };
+  entry.p = upstream(url).then(async r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const buf = Buffer.from(await r.arrayBuffer());
+    entry.size = buf.length; segBytes += buf.length;
+    return { buf, ct: r.headers.get('content-type') || 'video/mp2t' };
+  });
+  entry.p.catch(() => { segCache.delete(url); });
+  segCache.set(url, entry);
+  cacheSweep();
+  return entry.p;
+}
+
+async function fetchPlaylist(url) {
+  const known = redirects.get(url);
+  if (known && Date.now() - known.t < REDIRECT_TTL) {
+    try {
+      const r = await upstream(known.url);
+      if (r.ok) return r;
+    } catch {}
+    redirects.delete(url);
+  }
+  const r = await upstream(url);
+  if (r.ok && r.url && r.url !== url) redirects.set(url, { url: r.url, t: Date.now() });
+  return r;
+}
+
 function rewrite(text, base) {
   const exp = Date.now() + TOKEN_TTL;
+  const segments = [];
   const wrap = u => {
     const abs = new URL(u, base).toString();
     return '/x/' + seal({ u: abs, e: exp });
   };
-  return text.split('\n').map(line => {
+  const out = text.split('\n').map(line => {
     const l = line.trim();
     if (!l) return line;
     if (l.startsWith('#')) return line.replace(/URI="([^"]+)"/g, (_, u) => `URI="${wrap(u)}"`);
+    const abs = new URL(l, base).toString();
+    if (!isPlaylistUrl(abs)) segments.push(abs);
     return wrap(l);
   }).join('\n');
+  // newest segments are what a live player starts with
+  for (const u of segments.slice(-PREFETCH)) prefetch(u).catch(() => {});
+  return out;
 }
 
-async function proxy(res, url) {
+async function sendPlaylist(res, r) {
+  const body = rewrite(await r.text(), r.url);
+  res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store' });
+  res.end(body);
+}
+
+async function proxy(res, url, { playlist = false } = {}) {
+  // segment already pre-fetched (or being fetched) -> serve from memory
+  const cached = segCache.get(url);
+  if (cached) {
+    try {
+      const { buf, ct } = await cached.p;
+      res.writeHead(200, { 'Content-Type': ct, 'Content-Length': buf.length, 'Cache-Control': 'no-store' });
+      return res.end(buf);
+    } catch { /* fall through to a direct fetch */ }
+  }
   let r;
-  try { r = await upstream(url); } catch (e) { return send(res, 502, 'upstream error'); }
+  try { r = playlist || isPlaylistUrl(url) ? await fetchPlaylist(url) : await upstream(url); }
+  catch { return send(res, 502, 'upstream error'); }
   if (!r.ok) return send(res, r.status, 'upstream ' + r.status);
   const ct = r.headers.get('content-type') || '';
-  const isList = /mpegurl/i.test(ct) || /\.m3u8?($|\?)/i.test(new URL(r.url).pathname);
-  if (isList) {
-    const body = rewrite(await r.text(), r.url);
-    res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store' });
-    return res.end(body);
-  }
+  if (/mpegurl/i.test(ct) || isPlaylistUrl(r.url)) return sendPlaylist(res, r);
   res.writeHead(200, {
     'Content-Type': ct || 'video/mp2t',
     ...(r.headers.get('content-length') ? { 'Content-Length': r.headers.get('content-length') } : {}),
@@ -234,7 +304,7 @@ const server = http.createServer(async (req, res) => {
     if (Date.now() - loadedAt > REFRESH_HOURS * 3600e3) loadPlaylist();
     const list = channels.map(({ id, name, group, days, logo }) => ({ id, name, group, days, logo }));
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify({ channels: list, password: !!SITE_PASSWORD }));
+    return res.end(JSON.stringify({ channels: list, password: !!SITE_PASSWORD, direct: DIRECT }));
   }
 
   let m;
@@ -243,7 +313,13 @@ const server = http.createServer(async (req, res) => {
     if (!c) return send(res, 404, 'not found');
     const start = parseInt(u.searchParams.get('start') || '0', 10);
     const url = start > 0 && c.days > 0 ? archiveUrl(c, start) : c.url;
-    return proxy(res, url);
+    if (u.searchParams.get('direct') === '1' && DIRECT) {
+      // direct mode: the player goes straight to the provider (no video through this server)
+      const known = redirects.get(url);
+      res.writeHead(302, { Location: known && Date.now() - known.t < REDIRECT_TTL ? known.url : url, 'Cache-Control': 'no-store' });
+      return res.end();
+    }
+    return proxy(res, url, { playlist: true });
   }
 
   if ((m = p.match(/^\/x\/([\w-]+)$/))) {
