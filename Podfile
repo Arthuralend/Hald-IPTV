@@ -1,4 +1,4 @@
-platform :osx, '13.0'
+platform :osx, '11.0'
 
 target 'HaldIPTV' do
   use_frameworks!
@@ -8,7 +8,7 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |t|
     t.build_configurations.each do |c|
-      c.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '13.0'
+      c.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '11.0'
     end
   end
 end

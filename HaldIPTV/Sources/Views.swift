@@ -29,15 +29,10 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .ignoresSafeArea(edges: store.videoOnly ? .all : [])
-        .toolbar(store.videoOnly ? .hidden : .visible, for: .windowToolbar)
+        .windowToolbarHidden(store.videoOnly)
         .sheet(isPresented: $showAdd) { PlaylistEditor(playlist: nil) }
         .sheet(item: $editing) { PlaylistEditor(playlist: $0) }
-        .overlay(alignment: .bottom) {
-            if let err = store.errorMessage {
-                Text(err).padding(10).background(.red.opacity(0.85), in: Capsule()).foregroundStyle(.white)
-                    .padding().onTapGesture { store.errorMessage = nil }
-            }
-        }
+        .overlay(errorBanner, alignment: .bottom)
         .onReceive(NotificationCenter.default.publisher(for: .channelStep)) { n in
             step((n.object as? Int) ?? 1)
         }
@@ -46,6 +41,13 @@ struct ContentView: View {
         }
         .onChange(of: store.selectedPlaylistID) { _ in sidebar = .all }
         .onAppear { if store.playlists.isEmpty { showAdd = true } }
+    }
+
+    @ViewBuilder var errorBanner: some View {
+        if let err = store.errorMessage {
+            Text(err).padding(10).background(Capsule().fill(Color.red.opacity(0.85))).foregroundColor(.white)
+                .padding().onTapGesture { store.errorMessage = nil }
+        }
     }
 
     var divider: some View {
@@ -63,21 +65,44 @@ struct ContentView: View {
     }
 
     var library: some View {
-        NavigationSplitView {
+        // Plain two-column layout + own search field: works on macOS 11 Big Sur (2014 Macs) and newer.
+        HStack(spacing: 0) {
             SidebarView(selection: $sidebar, showAdd: $showAdd, editing: $editing)
-                .navigationSplitViewColumnWidth(min: 190, ideal: 230)
-        } detail: {
-            ChannelListView(channels: visible, gridMode: gridMode, isRecents: sidebar == .recents, play: play)
-                .navigationTitle((sidebar ?? .all).title)
-                .navigationSubtitle(L("%d каналов", visible.count))
-                .searchable(text: $search, placement: .toolbar, prompt: L("Поиск канала"))
-                .onSubmit(of: .search) {
-                    if search.trimmingCharacters(in: .whitespaces) == Preset.code {
-                        search = ""
-                        store.addPresetPlaylist()
+                .frame(width: 230)
+            Rectangle().fill(Color.black.opacity(0.35)).frame(width: 1)
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text((sidebar ?? .all).title).font(.title2.bold()).lineLimit(1)
+                        Text(L("%d каналов", visible.count)).font(.caption).foregroundColor(.secondary)
+                        Spacer()
                     }
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass").foregroundColor(.secondary)
+                        // Enter on the promo code adds the built-in playlist
+                        TextField(L("Поиск канала"), text: $search, onCommit: {
+                            if search.trimmingCharacters(in: .whitespaces) == Preset.code {
+                                search = ""
+                                store.addPresetPlaylist()
+                            }
+                        })
+                        .textFieldStyle(PlainTextFieldStyle())
+                        if !search.isEmpty {
+                            Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
+                                .buttonStyle(BorderlessButtonStyle()).foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
                 }
-                .toolbar {
+                .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
+                ChannelListView(channels: visible, gridMode: gridMode, isRecents: sidebar == .recents, play: play)
+            }
+            .background(Theme.panel)
+        }
+        .navigationTitle("IPTV Pro Max")
+        .navigationSubtitle((sidebar ?? .all).title)
+        .toolbar {
                     ToolbarItemGroup {
                         if sidebar == .recents && !store.recents.isEmpty {
                             Button { store.clearRecents() } label: { Image(systemName: "trash") }
@@ -86,12 +111,11 @@ struct ContentView: View {
                         Picker(L("Вид"), selection: $gridMode) {
                             Image(systemName: "list.bullet").tag(false)
                             Image(systemName: "square.grid.2x2").tag(true)
-                        }.pickerStyle(.segmented)
+                        }.pickerStyle(SegmentedPickerStyle())
                         Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
                             .help(L("Обновить плейлист"))
                     }
                 }
-        }
     }
 
     func play(_ c: Channel) {
@@ -119,7 +143,7 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
-            Section(L("Плейлист")) {
+            Section(header: Text(L("Плейлист"))) {
                 Picker("", selection: Binding(get: { store.selectedPlaylistID }, set: { store.select($0) })) {
                     ForEach(store.playlists) { Text($0.name).tag(Optional($0.id)) }
                 }
@@ -131,23 +155,23 @@ struct SidebarView: View {
                         Button { editing = p } label: { Image(systemName: "pencil") }.help(L("Изменить"))
                     }
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(BorderlessButtonStyle())
                 if store.isLoading { ProgressView().controlSize(.small) }
             }
-            Section(L("Разделы")) {
-                Label(L("Все каналы"), systemImage: "tv").badge(store.channels.count).tag(SidebarItem.all)
-                Label(L("Избранное"), systemImage: "star.fill").badge(store.favorites.count).tag(SidebarItem.favorites)
-                Label(L("Недавние"), systemImage: "clock").badge(store.recents.count).tag(SidebarItem.recents)
+            Section(header: Text(L("Разделы"))) {
+                Label(L("Все каналы"), systemImage: "tv").countBadge(store.channels.count).tag(SidebarItem.all)
+                Label(L("Избранное"), systemImage: "star.fill").countBadge(store.favorites.count).tag(SidebarItem.favorites)
+                Label(L("Недавние"), systemImage: "clock").countBadge(store.recents.count).tag(SidebarItem.recents)
                     .contextMenu { Button(L("Очистить недавние")) { store.clearRecents() } }
             }
-            Section(L("Группы")) {
+            Section(header: Text(L("Группы"))) {
                 ForEach(store.groups, id: \.name) { g in
-                    Label(L(g.name), systemImage: "folder").badge(g.count).tag(SidebarItem.group(g.name))
+                    Label(L(g.name), systemImage: "folder").countBadge(g.count).tag(SidebarItem.group(g.name))
                 }
             }
         }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
+        .listStyle(SidebarListStyle())
+        .hideScrollBackground()
         .background(Theme.sidebar)
     }
 }
@@ -163,8 +187,8 @@ struct ChannelListView: View {
         Group {
             if channels.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "tv.slash").font(.largeTitle).foregroundStyle(Theme.orange)
-                    Text(store.playlists.isEmpty ? L("Добавьте плейлист") : L("Нет каналов")).foregroundStyle(.secondary)
+                    Image(systemName: "tv.slash").font(.largeTitle).foregroundColor(Theme.orange)
+                    Text(store.playlists.isEmpty ? L("Добавьте плейлист") : L("Нет каналов")).foregroundColor(.secondary)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if gridMode {
                 ScrollView {
@@ -194,7 +218,7 @@ struct ChannelListView: View {
                         .contextMenu { menu(c) }
                         .listRowBackground(store.current == c ? Theme.orange.opacity(0.18) : Color.clear)
                 }
-                .scrollContentBackground(.hidden)
+                .hideScrollBackground()
             }
         }
         .background(Theme.panel)
@@ -227,16 +251,16 @@ struct ChannelRow: View {
                 HStack {
                     Text(channel.name).fontWeight(isCurrent ? .bold : .regular).lineLimit(1)
                     if store.favorites.contains(channel.id) {
-                        Image(systemName: "star.fill").foregroundStyle(Theme.orange).font(.caption2)
+                        Image(systemName: "star.fill").foregroundColor(Theme.orange).font(.caption2)
                     }
                 }
                 if let now {
-                    Text(now.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    ProgressView(value: now.progress()).controlSize(.mini).tint(Theme.orange)
+                    Text(now.title).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                    ProgressView(value: now.progress()).controlSize(.mini).accentColor(Theme.orange)
                 }
             }
             Spacer()
-            if isCurrent { Image(systemName: "speaker.wave.2.fill").foregroundStyle(Theme.orange) }
+            if isCurrent { Image(systemName: "speaker.wave.2.fill").foregroundColor(Theme.orange) }
         }
         .padding(.vertical, 2)
     }
@@ -259,27 +283,27 @@ struct PlayerPane: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
+        EverySecond {
             ZStack {
                 Color.black
                 VLCVideoContainer(controller: player)
                 if store.current == nil {
                     VStack(spacing: 10) {
                         Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 140, height: 140).opacity(0.9)
-                        Text(L("Выберите канал")).font(.title3).foregroundStyle(Theme.textDim)
+                        Text(L("Выберите канал")).font(.title3).foregroundColor(Theme.textDim)
                     }
                 }
-                if player.isBuffering { ProgressView().controlSize(.large).tint(Theme.orange) }
+                if player.isBuffering { ProgressView().controlSize(.large).accentColor(Theme.orange) }
                 if !player.statusText.isEmpty && !player.isBuffering {
-                    Text(player.statusText).foregroundStyle(.white).padding(8).background(.black.opacity(0.6), in: Capsule())
+                    Text(player.statusText).foregroundColor(.white).padding(8).background(Capsule().fill(Color.black.opacity(0.6)))
                 }
                 VStack {
                     HStack {
                         if player.isRecording, let start = player.recordStart { recBadge(start) }
                         Spacer()
                         if let t = player.toast {
-                            Text(t).font(.callout).foregroundStyle(.white).padding(8)
-                                .background(.black.opacity(0.7), in: Capsule())
+                            Text(t).font(.callout).foregroundColor(.white).padding(8)
+                                .background(Capsule().fill(Color.black.opacity(0.7)))
                         }
                     }.padding(12)
                     Spacer()
@@ -288,9 +312,7 @@ struct PlayerPane: View {
             }
         }
         .onHover { hover = $0 }
-        .onContinuousHover { phase in
-            if case .active = phase { lastMove = Date() }
-        }
+        .onMouseMove { lastMove = Date() }
         .onTapGesture(count: 2) { FullScreen.channel(store) }
         .onExitCommand { if store.videoOnly { FullScreen.isFull ? FullScreen.channel(store) : (store.videoOnly = false) } }
         .frame(minWidth: 420, minHeight: 260)
@@ -300,11 +322,11 @@ struct PlayerPane: View {
         let s = Int(Date().timeIntervalSince(start))
         let text = String(format: "%02d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
         return HStack(spacing: 6) {
-            Circle().fill(.red).frame(width: 10, height: 10)
+            Circle().fill(Color.red).frame(width: 10, height: 10)
             Text("REC \(text)").font(.system(.callout, design: .monospaced).bold())
         }
-        .foregroundStyle(.white).padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.black.opacity(0.6), in: Capsule())
+        .foregroundColor(.white).padding(.horizontal, 10).padding(.vertical, 6)
+        .background(Capsule().fill(Color.black.opacity(0.6)))
     }
 
     func controls(_ c: Channel) -> some View {
@@ -317,7 +339,7 @@ struct PlayerPane: View {
                     Text(c.name).font(.headline)
                     if let now {
                         Text("\(time(now.start))–\(time(now.stop))  \(now.title)").font(.caption)
-                        ProgressView(value: now.progress()).frame(maxWidth: 260).tint(Theme.orange)
+                        ProgressView(value: now.progress()).frame(maxWidth: 260).accentColor(Theme.orange)
                     }
                     if let nextP { Text("\(L("Далее:")) \(time(nextP.start)) \(nextP.title)").font(.caption2).opacity(0.7) }
                 }
@@ -333,7 +355,7 @@ struct PlayerPane: View {
                 }
                 Button { player.toggleRecording() } label: {
                     Image(systemName: player.isRecording ? "stop.circle.fill" : "record.circle")
-                        .foregroundStyle(player.isRecording ? .red : .white)
+                        .foregroundColor(player.isRecording ? .red : .white)
                 }.help(player.isRecording ? L("Остановить запись") : L("Запись"))
                 Button { player.showRecordings() } label: { Image(systemName: "folder") }
                     .help(L("Открыть папку записей"))
@@ -343,7 +365,7 @@ struct PlayerPane: View {
                         ForEach(player.audioTracks, id: \.index) { t in
                             Button((t.index == player.currentAudioTrack ? "✓ " : "") + t.name) { player.setAudioTrack(t.index) }
                         }
-                    } label: { Image(systemName: "waveform") }.menuStyle(.borderlessButton).frame(width: 40)
+                    } label: { Image(systemName: "waveform") }.menuStyle(BorderlessButtonMenuStyle()).frame(width: 40)
                         .help(L("Аудиодорожка"))
                 }
                 Button { player.muted.toggle() } label: {
@@ -364,10 +386,10 @@ struct PlayerPane: View {
                           ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 }.help(L("Полный экран канала") + " (⌘↩)")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(BorderlessButtonStyle())
             .font(.title3)
         }
-        .foregroundStyle(.white)
+        .foregroundColor(.white)
         .padding(14)
         .background(LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .top, endPoint: .bottom))
     }
@@ -392,13 +414,13 @@ struct PlayerPane: View {
                     Text(player.isLive ? L("ЭФИР") : "−" + hms(behind)).font(.system(.caption, design: .monospaced).bold())
                 }
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(.white.opacity(player.isLive ? 0.1 : 0.25), in: Capsule())
+                .background(Capsule().fill(Color.white.opacity(player.isLive ? 0.1 : 0.25)))
             }.help(L("Вернуться в прямой эфир"))
             if !player.isLive {
-                Text(time(player.positionDate)).font(.caption.monospacedDigit()).opacity(0.8)
+                Text(time(player.positionDate)).font(Font.caption.monospacedDigit()).opacity(0.8)
             }
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(BorderlessButtonStyle())
         .font(.body)
     }
 
@@ -413,7 +435,8 @@ struct PlayerPane: View {
 
 struct PlaylistEditor: View {
     @EnvironmentObject var store: AppStore
-    @Environment(\.dismiss) var dismiss
+    @Environment(\.presentationMode) private var presentation
+    private func dismiss() { presentation.wrappedValue.dismiss() }
     let playlist: Playlist?
     @State private var name = ""
     @State private var source = ""
@@ -437,7 +460,7 @@ struct PlaylistEditor: View {
             }
             HStack {
                 if let playlist {
-                    Button(L("Удалить"), role: .destructive) { store.removePlaylist(playlist); dismiss() }
+                    Button(L("Удалить")) { store.removePlaylist(playlist); dismiss() }
                 }
                 Spacer()
                 Button(L("Отмена")) { dismiss() }.keyboardShortcut(.cancelAction)
@@ -493,7 +516,7 @@ struct SettingsView: View {
             Divider()
             HStack {
                 Text(L("Папка записей") + ":")
-                Text(PlayerController.recordingsFolder.path).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                Text(PlayerController.recordingsFolder.path).lineLimit(1).truncationMode(.middle).foregroundColor(.secondary)
                 Button(L("Выбрать…")) { pick = true }
             }
         }

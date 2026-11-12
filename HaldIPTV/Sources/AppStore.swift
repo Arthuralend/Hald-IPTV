@@ -128,7 +128,7 @@ final class AppStore: ObservableObject {
         } else {
             var req = URLRequest(url: url, timeoutInterval: 60)
             req.setValue(p.userAgent ?? "VLC/3.0.20 LibVLC/3.0.20", forHTTPHeaderField: "User-Agent")
-            let (d, resp) = try await URLSession.shared.data(for: req)
+            let (d, resp) = try await URLSession.shared.fetch(req)
             if let h = resp as? HTTPURLResponse, !(200..<300).contains(h.statusCode) {
                 throw NSError(domain: "HaldIPTV", code: h.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(h.statusCode)"])
             }

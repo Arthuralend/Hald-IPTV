@@ -18,6 +18,8 @@ jobs:
         env:
           PRESET_URL: ${{ secrets.PRESET_URL }}
         run: python3 tools/gen_preset.py
+      - name: Refresh logo index (iptv-org)
+        run: python3 tools/gen_logo_index.py || echo "using bundled index"
       - name: Tools
         run: brew install xcodegen create-dmg || true
       - name: Generate project & pods

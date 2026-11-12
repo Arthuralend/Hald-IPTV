@@ -11,7 +11,7 @@ final class EPGService {
         guard let url = URL(string: urlString) else { return }
         var req = URLRequest(url: url, timeoutInterval: 120)
         if let ua = userAgent, !ua.isEmpty { req.setValue(ua, forHTTPHeaderField: "User-Agent") }
-        var (data, _) = try await URLSession.shared.data(for: req)
+        var (data, _) = try await URLSession.shared.fetch(req)
         if data.count > 2, data[0] == 0x1f, data[1] == 0x8b {
             data = try Self.gunzip(data)
         }

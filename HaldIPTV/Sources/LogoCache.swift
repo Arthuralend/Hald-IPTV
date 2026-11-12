@@ -31,7 +31,7 @@ actor LogoCache {
             guard let url = URL(string: urlString) else { return nil }
             var req = URLRequest(url: url, timeoutInterval: 20)
             req.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
-            guard let (data, _) = try? await URLSession.shared.data(for: req),
+            guard let (data, _) = try? await URLSession.shared.fetch(req),
                   let img = NSImage(data: data) else { return nil }
             try? data.write(to: file)
             return img
@@ -66,11 +66,11 @@ struct LogoView: View {
                 RoundedRectangle(cornerRadius: size * 0.2)
                     .fill(LinearGradient(colors: [color.opacity(0.85), color.opacity(0.55)],
                                          startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .overlay(Text(initials).font(.system(size: size * 0.36, weight: .bold)).foregroundStyle(.white))
+                    .overlay(Text(initials).font(.system(size: size * 0.36, weight: .bold)).foregroundColor(.white))
             }
         }
         .frame(width: size, height: size)
-        .task(id: channel.id + "\(useLogoDB)\(preferLogoDB)") {
+        .reload(on: channel.id + "\(useLogoDB)\(preferLogoDB)") {
             image = nil
             let own = channel.logo.flatMap { $0.isEmpty ? nil : $0 }
             if !preferLogoDB, let own { image = await LogoCache.shared.image(for: own) }

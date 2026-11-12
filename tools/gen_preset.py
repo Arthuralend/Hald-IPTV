@@ -4,6 +4,8 @@ Usage: PRESET_URL=... python3 tools/gen_preset.py"""
 import os
 
 url = os.environ.get("PRESET_URL", "").strip()
+if not url:
+    print("PRESET_URL not set: keeping the preset already in the sources"); raise SystemExit(0)
 key = os.urandom(16)
 enc = bytes(b ^ key[i % len(key)] for i, b in enumerate(url.encode()))
 
