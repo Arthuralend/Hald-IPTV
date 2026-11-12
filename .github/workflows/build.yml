@@ -28,10 +28,11 @@ jobs:
           pod install
       - name: Build (universal)
         run: |
+          set -o pipefail
           xcodebuild -workspace HaldIPTV.xcworkspace -scheme HaldIPTV -configuration Release \
             -derivedDataPath build ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build | tail -60
-          test -d "build/Build/Products/Release/IPTV Pro Max.app"
+          test -x "build/Build/Products/Release/IPTV Pro Max.app/Contents/MacOS/IPTV Pro Max"
       - name: Package
         run: |
           mkdir -p dist

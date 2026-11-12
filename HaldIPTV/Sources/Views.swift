@@ -200,8 +200,8 @@ struct ChannelListView: View {
                             }
                             .frame(maxWidth: .infinity, minHeight: 120)
                             .padding(6)
-                            .background(store.current == c ? Theme.orange.opacity(0.22) : Theme.card,
-                                        in: RoundedRectangle(cornerRadius: 12))
+                            .background(RoundedRectangle(cornerRadius: 12)
+                                .fill(store.current == c ? Theme.orange.opacity(0.22) : Theme.card))
                             .overlay(RoundedRectangle(cornerRadius: 12)
                                 .stroke(store.current == c ? Theme.orange : Theme.line, lineWidth: store.current == c ? 2 : 1))
                             .contentShape(Rectangle())
