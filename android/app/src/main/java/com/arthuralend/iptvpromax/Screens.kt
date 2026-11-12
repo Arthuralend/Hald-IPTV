@@ -1,0 +1,561 @@
+@file:OptIn(ExperimentalTvMaterial3Api::class)
+
+package com.arthuralend.iptvpromax
+
+import android.view.KeyEvent as AKey
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
+import androidx.tv.material3.*
+import kotlinx.coroutines.delay
+
+@Composable
+fun Root(app: AppState, player: PlayerCtl) {
+    Box(Modifier.fillMaxSize().background(C.Bg)) {
+        when (app.screen) {
+            Screen.Home -> HomeScreen(app, player)
+            Screen.Player -> PlayerScreen(app, player)
+            Screen.Settings -> SettingsScreen(app)
+        }
+        app.toast?.let {
+            Box(Modifier.fillMaxSize().padding(top = 28.dp), contentAlignment = Alignment.TopCenter) {
+                Text(it, color = Color.White, fontSize = 18.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(C.Scrim).padding(horizontal = 20.dp, vertical = 10.dp))
+            }
+        }
+    }
+}
+
+// ═══════════════════════════ HOME ═══════════════════════════
+
+@Composable
+fun HomeScreen(app: AppState, player: PlayerCtl) {
+    val railFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { delay(80); runCatching { railFocus.requestFocus() } }
+
+    Row(Modifier.fillMaxSize()) {
+        // ── left rail ──
+        Column(
+            Modifier.width(290.dp).fillMaxHeight().background(C.Rail).padding(vertical = 22.dp)
+        ) {
+            Row(Modifier.padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(44.dp))
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("IPTV", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = C.Text)
+                    Text("Pro Max", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.Orange)
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
+                item { RailItem("⌕", L.t("Поиск"), null, app.section == "search") { app.selectSection("search") } }
+                item {
+                    RailItem("▣", L.t("Все каналы"), app.channels.size, app.section == "all",
+                        Modifier.then(if (app.section == "all" || app.section == "search") Modifier.focusRequester(railFocus) else Modifier)) { app.selectSection("all") }
+                }
+                item {
+                    RailItem("★", L.t("Избранное"), app.favorites.count { f -> app.channels.any { it.id == f } }, app.section == "fav",
+                        if (app.section == "fav") Modifier.focusRequester(railFocus) else Modifier) { app.selectSection("fav") }
+                }
+                item {
+                    RailItem("◷", L.t("Недавние"), app.recents.size, app.section == "recent",
+                        if (app.section == "recent") Modifier.focusRequester(railFocus) else Modifier) { app.selectSection("recent") }
+                }
+                item {
+                    Text(L.t("Группы").uppercase(), color = C.Dim, fontSize = 12.sp, letterSpacing = 1.sp,
+                        modifier = Modifier.padding(start = 12.dp, top = 18.dp, bottom = 6.dp))
+                }
+                items(app.groups, key = { it.first }) { (g, n) ->
+                    val key = "g:$g"
+                    RailItem("▸", g, n, app.section == key,
+                        if (app.section == key) Modifier.focusRequester(railFocus) else Modifier) { app.selectSection(key) }
+                }
+            }
+            RailItem("⚙", L.t("Настройки"), null, false, Modifier.padding(horizontal = 14.dp)) { app.screen = Screen.Settings }
+        }
+
+        // ── content ──
+        Column(Modifier.weight(1f).fillMaxHeight().padding(start = 36.dp, end = 36.dp, top = 28.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(app.sectionTitle(), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = C.Text,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Spacer(Modifier.width(14.dp))
+                val list = app.sectionChannels()
+                Text("${list.size} ${L.t("каналов")}", color = C.Dim, fontSize = 16.sp, modifier = Modifier.padding(bottom = 5.dp))
+                Spacer(Modifier.weight(1f))
+                if (app.section == "recent" && app.recents.isNotEmpty()) {
+                    SmallButton(L.t("Очистить недавние")) { app.clearRecents() }
+                }
+            }
+            Text(L.t("Долгое нажатие OK — в избранное"), color = C.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+
+            if (app.section == "search") SearchField(app)
+
+            val list = app.sectionChannels()
+            when {
+                app.channels.isEmpty() && app.loading -> Center(L.t("Загрузка…"))
+                app.channels.isEmpty() && app.error != null -> Center(app.error!!)
+                list.isEmpty() -> Center(L.t("Нет каналов"))
+                else -> LazyVerticalGrid(
+                    columns = GridCells.Adaptive(176.dp),
+                    contentPadding = PaddingValues(top = 10.dp, bottom = 40.dp, start = 6.dp, end = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    items(list, key = { it.id }) { ch ->
+                        ChannelCard(ch, fav = ch.id in app.favorites, current = app.current?.id == ch.id,
+                            onClick = {
+                                app.playList = list
+                                player.play(ch)
+                                app.screen = Screen.Player
+                            },
+                            onLong = { app.toggleFav(ch) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Center(text: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text, color = C.Dim, fontSize = 20.sp, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+fun RailItem(icon: String, title: String, count: Int?, selected: Boolean, modifier: Modifier = Modifier, onSelect: () -> Unit) {
+    Surface(
+        onClick = onSelect,
+        modifier = modifier.fillMaxWidth().padding(vertical = 2.dp)
+            .onFocusChanged { if (it.isFocused && icon != "⚙" && icon != "⌕") onSelect() },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (selected) C.OrangeSoft else Color.Transparent,
+            contentColor = C.Text,
+            focusedContainerColor = C.Orange,
+            focusedContentColor = Color.White,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(icon, fontSize = 16.sp, modifier = Modifier.width(26.dp))
+            Text(title, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+            if (count != null && count > 0) Text("$count", fontSize = 13.sp, color = LocalContentColor.current.copy(alpha = .6f))
+        }
+    }
+}
+
+@Composable
+fun ChannelCard(ch: Channel, fav: Boolean, current: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
+    Card(
+        onClick = onClick,
+        onLongClick = onLong,
+        modifier = Modifier.height(168.dp),
+        shape = CardDefaults.shape(RoundedCornerShape(18.dp)),
+        colors = CardDefaults.colors(
+            containerColor = if (current) C.OrangeSoft else C.Card,
+            focusedContainerColor = C.CardFocused,
+        ),
+        scale = CardDefaults.scale(focusedScale = 1.1f),
+        border = CardDefaults.border(
+            border = if (current) Border(BorderStroke(2.dp, C.Orange.copy(alpha = .6f)), shape = RoundedCornerShape(18.dp)) else Border.None,
+            focusedBorder = Border(BorderStroke(3.dp, C.Orange), shape = RoundedCornerShape(18.dp)),
+        ),
+        glow = CardDefaults.glow(focusedGlow = Glow(C.Orange.copy(alpha = .5f), 14.dp)),
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                ChannelLogo(ch, 76.dp, Modifier.size(76.dp))
+                Spacer(Modifier.height(10.dp))
+                Text(ch.name, fontSize = 14.sp, color = C.Text, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center, lineHeight = 17.sp)
+            }
+            Text("${ch.number}", fontSize = 11.sp, color = C.Dim, modifier = Modifier.align(Alignment.TopStart).padding(8.dp))
+            Row(Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+                if (ch.days > 0) Text("⟲${ch.days}", fontSize = 11.sp, color = C.Screen)
+                if (fav) Text(" ★", fontSize = 13.sp, color = C.Orange)
+            }
+        }
+    }
+}
+
+@Composable
+fun SmallButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        colors = ClickableSurfaceDefaults.colors(containerColor = C.Card, contentColor = C.Text,
+            focusedContainerColor = C.Orange, focusedContentColor = Color.White),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
+    ) { Text(text, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+}
+
+@Composable
+private fun SearchField(app: AppState) {
+    TvTextField(app.search, { app.search = it }, L.t("Поиск"), Modifier.fillMaxWidth().padding(bottom = 8.dp))
+}
+
+@Composable
+fun TvTextField(value: String, onChange: (String) -> Unit, hint: String, modifier: Modifier = Modifier, password: Boolean = false) {
+    var focused by remember { mutableStateOf(false) }
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        singleLine = true,
+        textStyle = TextStyle(color = C.Text, fontSize = 20.sp),
+        cursorBrush = SolidColor(C.Orange),
+        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        modifier = modifier.onFocusChanged { focused = it.isFocused },
+        decorationBox = { inner ->
+            Box(
+                Modifier.clip(RoundedCornerShape(12.dp)).background(C.Card)
+                    .then(if (focused) Modifier.background(C.OrangeSoft) else Modifier)
+                    .padding(horizontal = 18.dp, vertical = 14.dp)
+            ) {
+                if (value.isEmpty()) Text(hint, color = C.Dim, fontSize = 20.sp)
+                inner()
+            }
+        },
+    )
+}
+
+// ═══════════════════════════ PLAYER ═══════════════════════════
+
+@Composable
+fun PlayerScreen(app: AppState, player: PlayerCtl) {
+    val ch = app.current ?: run { app.screen = Screen.Home; return }
+    var listOpen by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var infoUntil by remember { mutableLongStateOf(System.currentTimeMillis() + 5000) }
+    var digits by remember { mutableStateOf("") }
+    var longHandled by remember { mutableStateOf(false) }
+    val rootFocus = remember { FocusRequester() }
+
+    fun showInfo() { infoUntil = System.currentTimeMillis() + 5000 }
+    fun zap(d: Int) {
+        val list = app.playList.ifEmpty { app.channels }
+        if (list.isEmpty()) return
+        val i = list.indexOfFirst { it.id == ch.id }.let { if (it < 0) 0 else it }
+        player.play(list[(i + d + list.size) % list.size]); showInfo()
+    }
+
+    // ticking clock for LIVE / rewind indicators
+    LaunchedEffect(Unit) { while (true) { delay(1000); player.tick++ } }
+    LaunchedEffect(digits) {
+        if (digits.isEmpty()) return@LaunchedEffect
+        delay(1500)
+        val n = digits.toIntOrNull()
+        app.channels.firstOrNull { it.number == n }?.let { app.playList = app.channels; player.play(it); showInfo() }
+        digits = ""
+    }
+    LaunchedEffect(listOpen, menuOpen) { if (!listOpen && !menuOpen) runCatching { rootFocus.requestFocus() } }
+
+    BackHandler {
+        when {
+            listOpen -> listOpen = false
+            menuOpen -> menuOpen = false
+            else -> { player.exo.stop(); app.screen = Screen.Home }
+        }
+    }
+
+    Box(
+        Modifier.fillMaxSize().background(Color.Black)
+            .focusRequester(rootFocus)
+            .onPreviewKeyEvent { ev ->
+                if (listOpen || menuOpen) return@onPreviewKeyEvent false
+                val code = ev.nativeKeyEvent.keyCode
+                if (ev.type == KeyEventType.KeyDown) {
+                    when (code) {
+                        AKey.KEYCODE_DPAD_UP, AKey.KEYCODE_CHANNEL_UP -> { zap(-1); true }
+                        AKey.KEYCODE_DPAD_DOWN, AKey.KEYCODE_CHANNEL_DOWN -> { zap(1); true }
+                        AKey.KEYCODE_DPAD_LEFT -> { player.seekBy(-30); showInfo(); true }
+                        AKey.KEYCODE_DPAD_RIGHT -> { player.seekBy(30); showInfo(); true }
+                        AKey.KEYCODE_MEDIA_REWIND -> { player.seekBy(-300); showInfo(); true }
+                        AKey.KEYCODE_MEDIA_FAST_FORWARD -> { player.seekBy(300); showInfo(); true }
+                        AKey.KEYCODE_MEDIA_PLAY_PAUSE, AKey.KEYCODE_MEDIA_PLAY, AKey.KEYCODE_MEDIA_PAUSE, AKey.KEYCODE_SPACE -> { player.toggle(); showInfo(); true }
+                        AKey.KEYCODE_MENU, AKey.KEYCODE_INFO, AKey.KEYCODE_GUIDE -> { menuOpen = true; true }
+                        in AKey.KEYCODE_0..AKey.KEYCODE_9 -> { digits = (digits + (code - AKey.KEYCODE_0)).take(4); true }
+                        AKey.KEYCODE_DPAD_CENTER, AKey.KEYCODE_ENTER, AKey.KEYCODE_NUMPAD_ENTER -> {
+                            if (ev.nativeKeyEvent.repeatCount == 1 && !longHandled) { longHandled = true; menuOpen = true }
+                            true
+                        }
+                        else -> false
+                    }
+                } else if (ev.type == KeyEventType.KeyUp) {
+                    when (code) {
+                        AKey.KEYCODE_DPAD_CENTER, AKey.KEYCODE_ENTER, AKey.KEYCODE_NUMPAD_ENTER -> {
+                            if (!longHandled) listOpen = true
+                            longHandled = false
+                            true
+                        }
+                        else -> false
+                    }
+                } else false
+            }
+            .focusable()
+    ) {
+        val exo = player.exo
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    setShutterBackgroundColor(android.graphics.Color.BLACK)
+                    setKeepContentOnPlayerReset(true)
+                    isFocusable = false
+                    this.player = exo
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        player.status?.let {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(it, color = Color.White, fontSize = 20.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(C.Scrim).padding(horizontal = 24.dp, vertical = 12.dp))
+            }
+        }
+
+        if (digits.isNotEmpty()) {
+            Text(digits, fontSize = 64.sp, fontWeight = FontWeight.Bold, color = C.Orange,
+                modifier = Modifier.align(Alignment.TopEnd).padding(36.dp))
+        }
+
+        val tick = player.tick
+        val showBar = !listOpen && !menuOpen && (System.currentTimeMillis() < infoUntil || !player.playing)
+        AnimatedVisibility(showBar, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
+            InfoBar(ch, player, tick)
+        }
+
+        AnimatedVisibility(listOpen, enter = slideInHorizontally { -it } + fadeIn(), exit = slideOutHorizontally { -it } + fadeOut()) {
+            SideList(app, player, ch, onClose = { listOpen = false }, onPlay = { c -> player.play(c); listOpen = false; showInfo() })
+        }
+
+        AnimatedVisibility(menuOpen, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
+            ControlMenu(app, player, ch, onClose = { menuOpen = false })
+        }
+    }
+}
+
+@Composable
+private fun InfoBar(ch: Channel, player: PlayerCtl, tick: Long) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xEE0E0E0F))))
+            .padding(start = 48.dp, end = 48.dp, top = 60.dp, bottom = 34.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ChannelLogo(ch, 72.dp, Modifier.size(72.dp))
+            Spacer(Modifier.width(20.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${ch.number}", color = C.Orange, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(12.dp))
+                    Text(ch.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(ch.group, color = C.Dim, fontSize = 16.sp)
+            }
+            LiveBadge(player, tick)
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(L.t("OK — список каналов · ▲▼ — переключение · ◀▶ — перемотка · долгое OK — меню"), color = C.Dim, fontSize = 14.sp)
+    }
+}
+
+@Composable
+private fun LiveBadge(player: PlayerCtl, @Suppress("UNUSED_PARAMETER") tick: Long) {
+    val start = player.archiveStart
+    val text = if (start == null) L.t("ЭФИР") else {
+        val behind = (System.currentTimeMillis() / 1000 - player.positionSec()).coerceAtLeast(0)
+        val h = behind / 3600; val m = behind / 60 % 60; val s = behind % 60
+        "−" + (if (h > 0) "$h:" else "") + "%02d:%02d".format(m, s)
+    }
+    Row(
+        Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0x33FFFFFF)).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(if (start == null) C.Orange else Color.Gray))
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun SideList(app: AppState, player: PlayerCtl, ch: Channel, onClose: () -> Unit, onPlay: (Channel) -> Unit) {
+    val list = app.playList.ifEmpty { app.channels }
+    val start = list.indexOfFirst { it.id == ch.id }.coerceAtLeast(0)
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = (start - 3).coerceAtLeast(0))
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { delay(60); runCatching { focus.requestFocus() } }
+
+    Column(
+        Modifier.width(470.dp).fillMaxHeight()
+            .background(Brush.horizontalGradient(listOf(Color(0xF2141516), Color(0xE0141516))))
+            .padding(top = 28.dp)
+            .onPreviewKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.keyCode == AKey.KEYCODE_DPAD_LEFT) { onClose(); true } else false
+            }
+    ) {
+        Text(app.sectionTitle().ifEmpty { L.t("Все каналы") }, color = C.Orange, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 28.dp, vertical = 6.dp))
+        LazyColumn(state = state, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
+            itemsIndexed(list, key = { _, c -> c.id }) { i, c ->
+                val isCur = c.id == ch.id
+                Surface(
+                    onClick = { onPlay(c) },
+                    onLongClick = { app.toggleFav(c) },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp).then(if (i == start) Modifier.focusRequester(focus) else Modifier),
+                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = if (isCur) C.OrangeSoft else Color.Transparent, contentColor = C.Text,
+                        focusedContainerColor = C.Orange, focusedContentColor = Color.White),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${c.number}", fontSize = 14.sp, modifier = Modifier.width(48.dp), color = LocalContentColor.current.copy(alpha = .7f))
+                        ChannelLogo(c, 44.dp, Modifier.size(44.dp))
+                        Spacer(Modifier.width(14.dp))
+                        Text(c.name, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                            fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
+                        if (c.id in app.favorites) Text("★", color = if (isCur) Color.White else C.Orange)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { delay(60); runCatching { focus.requestFocus() } }
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xF00E0E0F))))
+            .padding(start = 48.dp, end = 48.dp, top = 70.dp, bottom = 40.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ChannelLogo(ch, 56.dp, Modifier.size(56.dp))
+            Spacer(Modifier.width(16.dp))
+            Text(ch.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            LiveBadge(player, player.tick)
+        }
+        Spacer(Modifier.height(22.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            MenuButton("« 5:00") { player.seekBy(-300) }
+            MenuButton("« 0:30") { player.seekBy(-30) }
+            MenuButton(if (player.playing) "❚❚" else "▶", Modifier.focusRequester(focus)) { player.toggle() }
+            MenuButton("0:30 »") { player.seekBy(30) }
+            MenuButton("5:00 »") { player.seekBy(300) }
+            MenuButton("● " + L.t("ЭФИР")) { player.goLive() }
+            MenuButton(if (ch.id in app.favorites) "★" else "☆") { app.toggleFav(ch) }
+        }
+    }
+    BackHandler { onClose() }
+}
+
+@Composable
+private fun MenuButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Color(0x33FFFFFF), contentColor = Color.White,
+            focusedContainerColor = C.Orange, focusedContentColor = Color.White),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
+    ) { Text(text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp)) }
+}
+
+// ═══════════════════════════ SETTINGS ═══════════════════════════
+
+@Composable
+fun SettingsScreen(app: AppState) {
+    var source by remember { mutableStateOf(app.prefs.source) }
+    var password by remember { mutableStateOf(app.prefs.password) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { delay(80); runCatching { focus.requestFocus() } }
+    BackHandler(enabled = app.prefs.source.isNotEmpty()) { app.screen = Screen.Home }
+
+    Row(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.width(420.dp).fillMaxHeight().background(C.Rail).padding(48.dp),
+            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(180.dp))
+            Spacer(Modifier.height(18.dp))
+            Text("IPTV Pro Max", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = C.Text)
+        }
+        Column(Modifier.weight(1f).padding(64.dp), verticalArrangement = Arrangement.Center) {
+            Text(L.t("Настройки"), fontSize = 36.sp, fontWeight = FontWeight.Bold, color = C.Text)
+            Spacer(Modifier.height(10.dp))
+            if (app.prefs.source.isEmpty()) {
+                Text(L.t("Откройте «Настройки» и введите код или ссылку на плейлист"), color = C.Dim, fontSize = 16.sp)
+            } else {
+                Text(L.t("Подключено") + " · ${app.channels.size} ${L.t("каналов")}", color = C.Orange, fontSize = 16.sp)
+            }
+            Spacer(Modifier.height(28.dp))
+            Text(L.t("Источник"), color = C.Dim, fontSize = 14.sp)
+            Spacer(Modifier.height(6.dp))
+            TvTextField(
+                if (source == Sources.CODE_SERVER) Sources.CODE else source, { source = it },
+                L.t("Код или адрес сервера / ссылка M3U"), Modifier.fillMaxWidth().focusRequester(focus))
+            Spacer(Modifier.height(16.dp))
+            TvTextField(password, { password = it }, L.t("Пароль сайта (если включён)"), Modifier.fillMaxWidth(), password = true)
+            Spacer(Modifier.height(28.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                SmallButton(L.t("Сохранить")) { app.saveSource(source, password) }
+                if (app.prefs.source.isNotEmpty()) {
+                    SmallButton(L.t("Обновить список")) { app.reload(); app.screen = Screen.Home }
+                    SmallButton(L.t("Очистить недавние")) { app.clearRecents() }
+                }
+            }
+            app.error?.let { Spacer(Modifier.height(16.dp)); Text(it, color = Color(0xFFFF7A6A), fontSize = 15.sp) }
+        }
+    }
+}
