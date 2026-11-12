@@ -543,7 +543,7 @@ fun SettingsScreen(app: AppState) {
             Text(L.t("Источник"), color = C.Dim, fontSize = 14.sp)
             Spacer(Modifier.height(6.dp))
             TvTextField(
-                if (source == Sources.CODE_SERVER) Sources.CODE else source, { source = it },
+                if (source == Sources.PRESET) Sources.CODE else source, { source = it },
                 L.t("Код или адрес сервера / ссылка M3U"), Modifier.fillMaxWidth().focusRequester(focus))
             Spacer(Modifier.height(16.dp))
             TvTextField(password, { password = it }, L.t("Пароль сайта (если включён)"), Modifier.fillMaxWidth(), password = true)

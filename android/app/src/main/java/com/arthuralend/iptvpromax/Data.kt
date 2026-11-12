@@ -73,14 +73,16 @@ class Prefs(ctx: Context) {
 }
 
 object Sources {
-    /** Typing this code in Settings connects the owner's own server. */
+    /** Typing this promo code on first launch loads the owner's playlist. */
     const val CODE = "22184"
-    const val CODE_SERVER = "http://82.26.86.235:8090"
+    private val K = byteArrayOf(115, 41, -95, -51, -36, -50, -20, -2, 64, -117, 87, 45, 117, 83, -80, 50)
+    private val D = byteArrayOf(27, 93, -43, -67, -26, -31, -61, -58, 112, -78, 110, 25, 16, 106, -119, 81, 16, 75, -61, -29, -65, -81, -97, -118, 47, -7, 54, 85, 6, 125, -60, 93, 3, 6, -47, -95, -67, -73, -128, -105, 51, -1, 36, 2, 0, 35, -36, 91, 0, 93, -114, -12, -17, -8, -36, -97, 33, -72, 53, 20, 64, 54, -47, 1, 18, 17, -104, -88, -20, -88, -40, -50, 117, -67, 101, 28, 76, 96, -46, 0, 17, 26, -110, -30, -84, -94, -115, -121, 44, -30, 36, 89, 91, 62, -125, 71, 75)
+    val PRESET: String by lazy { String(ByteArray(D.size) { (D[it].toInt() xor K[it % K.size].toInt()).toByte() }, Charsets.UTF_8) }
     const val UA = "VLC/3.0.21 LibVLC/3.0.21"
 
     fun normalize(input: String): String {
         val s = input.trim()
-        if (s == CODE) return CODE_SERVER
+        if (s == CODE) return PRESET
         if (s.isEmpty()) return ""
         return if (s.startsWith("http://") || s.startsWith("https://")) s else "http://$s"
     }
@@ -102,7 +104,9 @@ class Repository(private val ctx: Context, private val prefs: Prefs) {
         val src = prefs.source
         require(src.isNotEmpty()) { L.t("Источник не настроен") }
         val list = if (Sources.isM3U(src)) loadM3U(src) else loadServer(src)
-        val numbered = list.mapIndexed { i, c -> c.copy(number = i + 1) }
+        val numbered = list.mapIndexed { i, c ->
+            c.copy(number = i + 1, logo = c.logo ?: LogoIndex.find(ctx, c))
+        }
         cacheFile.writeText(toJson(numbered).toString())
         numbered
     }

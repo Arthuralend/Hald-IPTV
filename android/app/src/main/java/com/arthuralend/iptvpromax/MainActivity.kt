@@ -216,6 +216,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // logos: SVG support + a proper User-Agent (Wikimedia rejects anonymous clients)
+        coil.Coil.setImageLoader(
+            coil.ImageLoader.Builder(applicationContext)
+                .components { add(coil.decode.SvgDecoder.Factory()) }
+                .okHttpClient {
+                    okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+                        chain.proceed(chain.request().newBuilder()
+                            .header("User-Agent", "IPTVProMax/1.0 (Android TV; +https://github.com/Arthuralend/Hald-IPTV)").build())
+                    }.build()
+                }
+                .crossfade(true)
+                .respectCacheHeaders(false)
+                .build()
+        )
         app = AppState(applicationContext)
         player = PlayerCtl(this, app)
         setContent { AppTheme { Root(app, player) } }

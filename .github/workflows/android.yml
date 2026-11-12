@@ -3,7 +3,7 @@ name: Build Android TV
 on:
   push:
     branches: [main]
-    paths: ['android/**', '.github/workflows/android.yml']
+    paths: ['android/**', 'tools/gen_logo_index.py', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:
@@ -39,6 +39,8 @@ jobs:
           echo "::add-mask::$P"
           echo "KEYSTORE_FILE=$HOME/.iptv-keystore/release.jks" >> "$GITHUB_ENV"
           echo "KEYSTORE_PASS=$P" >> "$GITHUB_ENV"
+      - name: Refresh logo index (iptv-org)
+        run: python3 tools/gen_logo_index.py || echo "using bundled index"
       - name: Build APK
         working-directory: android
         run: gradle assembleRelease --no-daemon --stacktrace -q
