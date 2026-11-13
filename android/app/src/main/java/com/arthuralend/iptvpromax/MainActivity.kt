@@ -46,6 +46,8 @@ class AppState(ctx: Context) {
     var current by mutableStateOf<Channel?>(null)
     var toast by mutableStateOf<String?>(null)
     var epgVersion by mutableIntStateOf(0)
+    var listMode by mutableStateOf(prefs.listMode)
+    fun toggleListMode() { listMode = !listMode; prefs.listMode = listMode }
     private var epgJob: Job? = null
     private var toastJob: Job? = null
 

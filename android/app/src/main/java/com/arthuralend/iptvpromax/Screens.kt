@@ -12,6 +12,10 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -71,86 +75,164 @@ fun Root(app: AppState, player: PlayerCtl) {
 
 @Composable
 fun HomeScreen(app: AppState, player: PlayerCtl) {
-    val railFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { delay(80); runCatching { railFocus.requestFocus() } }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // phones (and narrow windows): rail becomes a pull-out panel, touch-friendly top bar
+        val compact = maxWidth < 700.dp
+        var drawer by remember { mutableStateOf(false) }
+        val railFocus = remember { FocusRequester() }
+        if (!compact) LaunchedEffect(Unit) { delay(80); runCatching { railFocus.requestFocus() } }
 
-    Row(Modifier.fillMaxSize()) {
-        // ── left rail ──
-        Column(
-            Modifier.width(290.dp).fillMaxHeight().background(C.Rail).padding(vertical = 22.dp)
-        ) {
-            Row(Modifier.padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(44.dp))
-                Spacer(Modifier.width(12.dp))
-                Text(L.t("Телевизор"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = C.Text)
-            }
-            Spacer(Modifier.height(18.dp))
-            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
-                item { RailItem("⌕", L.t("Поиск"), null, app.section == "search") { app.selectSection("search") } }
-                item {
-                    RailItem("▣", L.t("Все каналы"), app.channels.size, app.section == "all",
-                        Modifier.then(if (app.section == "all" || app.section == "search") Modifier.focusRequester(railFocus) else Modifier)) { app.selectSection("all") }
-                }
-                item {
-                    RailItem("★", L.t("Избранное"), app.favorites.count { f -> app.channels.any { it.id == f } }, app.section == "fav",
-                        if (app.section == "fav") Modifier.focusRequester(railFocus) else Modifier) { app.selectSection("fav") }
-                }
-                item {
-                    RailItem("◷", L.t("Недавние"), app.recents.size, app.section == "recent",
-                        if (app.section == "recent") Modifier.focusRequester(railFocus) else Modifier) { app.selectSection("recent") }
-                }
-                item {
-                    Text(L.t("Группы").uppercase(), color = C.Dim, fontSize = 12.sp, letterSpacing = 1.sp,
-                        modifier = Modifier.padding(start = 12.dp, top = 18.dp, bottom = 6.dp))
-                }
-                items(app.groups, key = { it.first }) { (g, n) ->
-                    val key = "g:$g"
-                    RailItem("▸", g, n, app.section == key,
-                        if (app.section == key) Modifier.focusRequester(railFocus) else Modifier) { app.selectSection(key) }
+        Row(Modifier.fillMaxSize()) {
+            if (!compact) {
+                Column(Modifier.width(290.dp).fillMaxHeight().background(C.Rail).padding(vertical = 22.dp)) {
+                    RailContent(app, railFocus) { drawer = false }
                 }
             }
-            RailItem("⚙", L.t("Настройки"), null, false, Modifier.padding(horizontal = 14.dp)) { app.screen = Screen.Settings }
-        }
-
-        // ── content ──
-        Column(Modifier.weight(1f).fillMaxHeight().padding(start = 36.dp, end = 36.dp, top = 28.dp)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(app.sectionTitle(), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = C.Text,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(14.dp))
+            Column(
+                Modifier.weight(1f).fillMaxHeight()
+                    .padding(start = if (compact) 12.dp else 36.dp, end = if (compact) 12.dp else 36.dp, top = if (compact) 12.dp else 28.dp)
+            ) {
                 val list = app.sectionChannels()
-                Text("${list.size} ${L.t("каналов")}", color = C.Dim, fontSize = 16.sp, modifier = Modifier.padding(bottom = 5.dp))
-                Spacer(Modifier.weight(1f))
-                if (app.section == "recent" && app.recents.isNotEmpty()) {
-                    SmallButton(L.t("Очистить недавние")) { app.clearRecents() }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (compact) {
+                        SmallButton("☰") { drawer = true }
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(app.sectionTitle(), fontSize = if (compact) 22.sp else 32.sp, fontWeight = FontWeight.Bold, color = C.Text,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${list.size} ${L.t("каналов")}", color = C.Dim, fontSize = if (compact) 12.sp else 16.sp)
+                    }
+                    if (app.section == "recent" && app.recents.isNotEmpty()) {
+                        SmallButton(if (compact) "🗑" else L.t("Очистить недавние")) { app.clearRecents() }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    // grid (4 in a row) / list
+                    SmallButton(if (app.listMode) "▦" else "☰") { app.toggleListMode() }
+                    if (compact) {
+                        Spacer(Modifier.width(8.dp))
+                        SmallButton("⌕") { app.selectSection("search") }
+                        Spacer(Modifier.width(8.dp))
+                        SmallButton("⚙") { app.screen = Screen.Settings }
+                    }
                 }
-            }
-            Text(L.t("Долгое нажатие OK — в избранное"), color = C.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+                if (!compact) Text(L.t("Долгое нажатие OK — в избранное"), color = C.Dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
 
-            if (app.section == "search") SearchField(app)
+                if (app.section == "search") SearchField(app)
 
-            val list = app.sectionChannels()
-            when {
-                app.channels.isEmpty() && app.loading -> Center(L.t("Загрузка…"))
-                app.channels.isEmpty() && app.error != null -> Center(app.error!!)
-                list.isEmpty() -> Center(L.t("Нет каналов"))
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Adaptive(176.dp),
-                    contentPadding = PaddingValues(top = 10.dp, bottom = 40.dp, start = 6.dp, end = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    items(list, key = { it.id }) { ch ->
-                        ChannelCard(ch, fav = ch.id in app.favorites, current = app.current?.id == ch.id,
-                            onClick = {
-                                app.playList = list
-                                player.play(ch)
-                                app.screen = Screen.Player
-                            },
-                            onLong = { app.toggleFav(ch) })
+                val open: (Channel) -> Unit = { ch ->
+                    app.playList = list
+                    player.play(ch)
+                    app.screen = Screen.Player
+                }
+                when {
+                    app.channels.isEmpty() && app.loading -> Center(L.t("Загрузка…"))
+                    app.channels.isEmpty() && app.error != null -> Center(app.error!!)
+                    list.isEmpty() -> Center(L.t("Нет каналов"))
+                    app.listMode -> LazyColumn(
+                        contentPadding = PaddingValues(top = 4.dp, bottom = 40.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp),
+                    ) {
+                        items(list, key = { it.id }) { ch ->
+                            ChannelRow(ch, fav = ch.id in app.favorites, current = app.current?.id == ch.id, compact = compact,
+                                epg = app.epgVersion, onClick = { open(ch) }, onLong = { app.toggleFav(ch) })
+                        }
+                    }
+                    else -> LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        contentPadding = PaddingValues(top = 6.dp, bottom = 40.dp, start = 4.dp, end = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 20.dp),
+                    ) {
+                        items(list, key = { it.id }) { ch ->
+                            ChannelCard(ch, fav = ch.id in app.favorites, current = app.current?.id == ch.id, compact = compact,
+                                onClick = { open(ch) }, onLong = { app.toggleFav(ch) })
+                        }
                     }
                 }
             }
+        }
+
+        // pull-out sections panel on phones
+        if (compact) {
+            AnimatedVisibility(drawer, enter = fadeIn(), exit = fadeOut()) {
+                Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable { drawer = false })
+            }
+            AnimatedVisibility(drawer, enter = slideInHorizontally { -it }, exit = slideOutHorizontally { -it }) {
+                Column(Modifier.width(290.dp).fillMaxHeight().background(C.Rail).padding(vertical = 18.dp)) {
+                    RailContent(app, railFocus) { drawer = false }
+                }
+            }
+            BackHandler(enabled = drawer) { drawer = false }
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.RailContent(app: AppState, railFocus: FocusRequester, onPicked: () -> Unit) {
+    Row(Modifier.padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(44.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(L.t("Телевизор"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = C.Text)
+    }
+    Spacer(Modifier.height(18.dp))
+    fun pick(sec: String) { app.selectSection(sec); onPicked() }
+    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
+        item { RailItem("⌕", L.t("Поиск"), null, app.section == "search") { pick("search") } }
+        item {
+            RailItem("▣", L.t("Все каналы"), app.channels.size, app.section == "all",
+                if (app.section == "all" || app.section == "search") Modifier.focusRequester(railFocus) else Modifier) { pick("all") }
+        }
+        item {
+            RailItem("★", L.t("Избранное"), app.favorites.count { f -> app.channels.any { it.id == f } }, app.section == "fav",
+                if (app.section == "fav") Modifier.focusRequester(railFocus) else Modifier) { pick("fav") }
+        }
+        item {
+            RailItem("◷", L.t("Недавние"), app.recents.size, app.section == "recent",
+                if (app.section == "recent") Modifier.focusRequester(railFocus) else Modifier) { pick("recent") }
+        }
+        item {
+            Text(L.t("Группы").uppercase(), color = C.Dim, fontSize = 12.sp, letterSpacing = 1.sp,
+                modifier = Modifier.padding(start = 12.dp, top = 18.dp, bottom = 6.dp))
+        }
+        items(app.groups, key = { it.first }) { (g, n) ->
+            val key = "g:$g"
+            RailItem("▸", g, n, app.section == key,
+                if (app.section == key) Modifier.focusRequester(railFocus) else Modifier) { pick(key) }
+        }
+    }
+    RailItem("⚙", L.t("Настройки"), null, false, Modifier.padding(horizontal = 14.dp)) { onPicked(); app.screen = Screen.Settings }
+}
+
+/** list ("строчный") mode row */
+@Composable
+fun ChannelRow(ch: Channel, fav: Boolean, current: Boolean, compact: Boolean, epg: Int, onClick: () -> Unit, onLong: () -> Unit) {
+    val now = remember(ch.id, epg) { Epg.nowNext(ch.id).first }
+    Surface(
+        onClick = onClick,
+        onLongClick = onLong,
+        modifier = Modifier.fillMaxWidth(),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (current) C.OrangeSoft else C.Card, contentColor = C.Text,
+            focusedContainerColor = C.Orange, focusedContentColor = Color.White),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = if (compact) 6.dp else 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${ch.number}", fontSize = 13.sp, modifier = Modifier.width(if (compact) 36.dp else 48.dp),
+                color = LocalContentColor.current.copy(alpha = .6f))
+            val sz = if (compact) 40.dp else 52.dp
+            ChannelLogo(ch, sz, Modifier.size(sz))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(ch.name, fontSize = if (compact) 15.sp else 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    fontWeight = if (current) FontWeight.Bold else FontWeight.Normal)
+                if (now != null) Text("${hhmm(now.start)}  ${now.title}", fontSize = if (compact) 12.sp else 14.sp, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, color = LocalContentColor.current.copy(alpha = .65f))
+            }
+            if (ch.days > 0) Text("⟲${ch.days}", fontSize = 12.sp, color = C.Screen, modifier = Modifier.padding(start = 8.dp))
+            if (fav) Text(" ★", fontSize = 15.sp, color = if (current) Color.White else C.Orange)
         }
     }
 }
@@ -187,11 +269,11 @@ fun RailItem(icon: String, title: String, count: Int?, selected: Boolean, modifi
 }
 
 @Composable
-fun ChannelCard(ch: Channel, fav: Boolean, current: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
+fun ChannelCard(ch: Channel, fav: Boolean, current: Boolean, compact: Boolean = false, onClick: () -> Unit, onLong: () -> Unit) {
     Card(
         onClick = onClick,
         onLongClick = onLong,
-        modifier = Modifier.height(168.dp),
+        modifier = Modifier.height(if (compact) 112.dp else 168.dp),
         shape = CardDefaults.shape(RoundedCornerShape(18.dp)),
         colors = CardDefaults.colors(
             containerColor = if (current) C.OrangeSoft else C.Card,
@@ -205,11 +287,12 @@ fun ChannelCard(ch: Channel, fav: Boolean, current: Boolean, onClick: () -> Unit
         glow = CardDefaults.glow(focusedGlow = Glow(C.Orange.copy(alpha = .5f), 14.dp)),
     ) {
         Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                ChannelLogo(ch, 76.dp, Modifier.size(76.dp))
-                Spacer(Modifier.height(10.dp))
-                Text(ch.name, fontSize = 14.sp, color = C.Text, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center, lineHeight = 17.sp)
+            val logo = if (compact) 46.dp else 76.dp
+            Column(Modifier.fillMaxSize().padding(if (compact) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                ChannelLogo(ch, logo, Modifier.size(logo))
+                Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
+                Text(ch.name, fontSize = if (compact) 11.sp else 14.sp, color = C.Text, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center, lineHeight = if (compact) 13.sp else 17.sp)
             }
             Text("${ch.number}", fontSize = 11.sp, color = C.Dim, modifier = Modifier.align(Alignment.TopStart).padding(8.dp))
             Row(Modifier.align(Alignment.TopEnd).padding(8.dp)) {
@@ -354,6 +437,12 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
             modifier = Modifier.fillMaxSize(),
         )
 
+        // touch screens: tap the video to open the control menu
+        Box(Modifier.fillMaxSize().clickable(
+            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+            indication = null,
+        ) { if (!listOpen && !guideOpen) menuOpen = !menuOpen })
+
         player.status?.let {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(it, color = Color.White, fontSize = 20.sp,
@@ -377,7 +466,8 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
         }
 
         AnimatedVisibility(menuOpen, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
-            ControlMenu(app, player, ch, onClose = { menuOpen = false }, onGuide = { menuOpen = false; guideOpen = true })
+            ControlMenu(app, player, ch, onClose = { menuOpen = false }, onGuide = { menuOpen = false; guideOpen = true },
+                onList = { menuOpen = false; listOpen = true }, onExit = { player.exo.stop(); app.screen = Screen.Home })
         }
 
         AnimatedVisibility(guideOpen, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(),
@@ -490,7 +580,8 @@ private fun SideList(app: AppState, player: PlayerCtl, ch: Channel, onClose: () 
 }
 
 @Composable
-private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: () -> Unit, onGuide: () -> Unit) {
+private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: () -> Unit, onGuide: () -> Unit,
+                        onList: () -> Unit = {}, onExit: () -> Unit = {}) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(60); runCatching { focus.requestFocus() } }
     Column(
@@ -505,7 +596,7 @@ private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: 
             LiveBadge(player, player.tick)
         }
         Spacer(Modifier.height(22.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             MenuButton("« 5:00") { player.seekBy(-300) }
             MenuButton("« 0:30") { player.seekBy(-30) }
             MenuButton(if (player.playing) "❚❚" else "▶", Modifier.focusRequester(focus)) { player.toggle() }
@@ -514,6 +605,8 @@ private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: 
             MenuButton("● " + L.t("ЭФИР")) { player.goLive() }
             MenuButton(if (ch.id in app.favorites) "★" else "☆") { app.toggleFav(ch) }
             MenuButton("☰ " + L.t("Телепрограмма")) { onGuide() }
+            MenuButton("▤ " + L.t("Каналы")) { onList() }
+            MenuButton("✕") { onExit() }
         }
     }
     BackHandler { onClose() }
@@ -538,43 +631,69 @@ fun SettingsScreen(app: AppState) {
     var source by remember { mutableStateOf(app.prefs.source) }
     var password by remember { mutableStateOf(app.prefs.password) }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { delay(80); runCatching { focus.requestFocus() } }
     BackHandler(enabled = app.prefs.source.isNotEmpty()) { app.screen = Screen.Home }
 
-    Row(Modifier.fillMaxSize()) {
-        Column(
-            Modifier.width(420.dp).fillMaxHeight().background(C.Rail).padding(48.dp),
-            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(180.dp))
-            Spacer(Modifier.height(18.dp))
-            Text(L.t("Телевизор"), fontSize = 30.sp, fontWeight = FontWeight.Bold, color = C.Text)
-        }
-        Column(Modifier.weight(1f).padding(64.dp), verticalArrangement = Arrangement.Center) {
-            Text(L.t("Настройки"), fontSize = 36.sp, fontWeight = FontWeight.Bold, color = C.Text)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val compact = maxWidth < 700.dp
+        // on TV focus the field for the remote; on phones don't pop the keyboard by itself
+        if (!compact) LaunchedEffect(Unit) { delay(80); runCatching { focus.requestFocus() } }
+
+        val form: @Composable ColumnScope.() -> Unit = {
+            Text(L.t("Настройки"), fontSize = if (compact) 26.sp else 36.sp, fontWeight = FontWeight.Bold, color = C.Text)
             Spacer(Modifier.height(10.dp))
             if (app.prefs.source.isEmpty()) {
-                Text(L.t("Откройте «Настройки» и введите код или ссылку на плейлист"), color = C.Dim, fontSize = 16.sp)
+                Text(L.t("Откройте «Настройки» и введите код или ссылку на плейлист"), color = C.Dim, fontSize = 15.sp)
             } else {
-                Text(L.t("Подключено") + " · ${app.channels.size} ${L.t("каналов")}", color = C.Orange, fontSize = 16.sp)
+                Text(L.t("Подключено") + " · ${app.channels.size} ${L.t("каналов")}", color = C.Orange, fontSize = 15.sp)
             }
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(22.dp))
             Text(L.t("Источник"), color = C.Dim, fontSize = 14.sp)
             Spacer(Modifier.height(6.dp))
             TvTextField(
                 if (source == Sources.PRESET) Sources.CODE else source, { source = it },
                 L.t("Код или адрес сервера / ссылка M3U"), Modifier.fillMaxWidth().focusRequester(focus))
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
             TvTextField(password, { password = it }, L.t("Пароль сайта (если включён)"), Modifier.fillMaxWidth(), password = true)
-            Spacer(Modifier.height(28.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Spacer(Modifier.height(22.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SmallButton(L.t("Сохранить")) { app.saveSource(source, password) }
                 if (app.prefs.source.isNotEmpty()) {
                     SmallButton(L.t("Обновить список")) { app.reload(); app.screen = Screen.Home }
+                }
+            }
+            if (app.prefs.source.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SmallButton(L.t("Очистить недавние")) { app.clearRecents() }
+                    SmallButton("← " + L.t("Каналы")) { app.screen = Screen.Home }
                 }
             }
             app.error?.let { Spacer(Modifier.height(16.dp)); Text(it, color = Color(0xFFFF7A6A), fontSize = 15.sp) }
+        }
+
+        if (compact) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(20.dp),
+                horizontalAlignment = Alignment.Start,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(56.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(L.t("Телевизор"), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = C.Text)
+                }
+                Spacer(Modifier.height(24.dp))
+                form()
+            }
+        } else Row(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.width(420.dp).fillMaxHeight().background(C.Rail).padding(48.dp),
+                verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(180.dp))
+                Spacer(Modifier.height(18.dp))
+                Text(L.t("Телевизор"), fontSize = 30.sp, fontWeight = FontWeight.Bold, color = C.Text)
+            }
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(64.dp), verticalArrangement = Arrangement.Center, content = form)
         }
     }
 }

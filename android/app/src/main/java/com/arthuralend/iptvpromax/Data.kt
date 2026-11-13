@@ -44,7 +44,7 @@ object L {
         "Неверный пароль" to "Wrong password", "Обновить список" to "Refresh list",
         "Продолжить просмотр" to "Continue watching", "Добавлено в избранное" to "Added to favorites",
         "Убрано из избранного" to "Removed from favorites", "Источник" to "Source",
-        "Подключено" to "Connected", "Телевизор" to "TV", "Телепрограмма" to "TV guide", "Далее:" to "Next:", "Нет телепрограммы для этого канала" to "No TV guide for this channel", "Передача ещё не началась" to "Not started yet",
+        "Подключено" to "Connected", "Телевизор" to "TV", "Телепрограмма" to "TV guide", "Каналы" to "Channels", "Далее:" to "Next:", "Нет телепрограммы для этого канала" to "No TV guide for this channel", "Передача ещё не началась" to "Not started yet",
     )
     fun t(s: String) = if (ru) s else en[s] ?: s
 }
@@ -67,6 +67,9 @@ class Prefs(ctx: Context) {
     var recents: List<String>
         get() = (p.getString("recent", "") ?: "").split('\n').filter { it.isNotEmpty() }
         set(v) = p.edit().putString("recent", v.joinToString("\n")).apply()
+    var listMode: Boolean
+        get() = p.getBoolean("listMode", false)
+        set(v) = p.edit().putBoolean("listMode", v).apply()
     var lastSection: String
         get() = p.getString("section", "all") ?: "all"
         set(v) = p.edit().putString("section", v).apply()
