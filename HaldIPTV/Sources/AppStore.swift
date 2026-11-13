@@ -62,7 +62,7 @@ final class AppStore: ObservableObject {
         if let existing = playlists.first(where: { $0.source == url }) {
             select(existing.id)
         } else {
-            addPlaylist(name: "IPTV Pro Max", source: url, epg: nil, userAgent: nil)
+            addPlaylist(name: L("Телевизор"), source: url, epg: nil, userAgent: nil)
         }
         presetAdded += 1
     }
@@ -139,12 +139,15 @@ final class AppStore: ObservableObject {
 
     private var epgLoadedFor: String?
     private func loadEPG(_ p: Playlist, _ fromPlaylist: String?) async {
-        let urlString = p.epgURL ?? fromPlaylist ?? UserDefaults.standard.string(forKey: "epg-\(p.id)")
         if let fromPlaylist { UserDefaults.standard.set(fromPlaylist, forKey: "epg-\(p.id)") }
-        guard let urlString, !urlString.isEmpty, epgLoadedFor != urlString else { return }
+        let first = p.epgURL ?? fromPlaylist ?? UserDefaults.standard.string(forKey: "epg-\(p.id)")
+        // playlist's own guide first, then the iLook TV guide and a spare source
+        let sources = ([first].compactMap { $0 }.filter { !$0.isEmpty }) + EPGService.defaultSources
+        let key = sources.joined(separator: "|")
+        guard epgLoadedFor != key else { return }
         do {
-            try await epg.load(from: urlString, userAgent: p.userAgent)
-            epgLoadedFor = urlString
+            try await epg.load(from: sources, userAgent: p.userAgent)
+            epgLoadedFor = key
             epgVersion += 1
         } catch { /* EPG is optional */ }
     }

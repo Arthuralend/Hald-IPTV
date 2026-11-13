@@ -55,6 +55,8 @@ struct LogoView: View {
     var size: CGFloat = 36
     @AppStorage("useLogoDB") private var useLogoDB = true
     @AppStorage("preferLogoDB") private var preferLogoDB = false
+    @EnvironmentObject private var store: AppStore
+    private var epgVersion: Int { store.epgVersion }
     private var name: String { channel.name }
     @State private var image: NSImage?
 
@@ -70,10 +72,13 @@ struct LogoView: View {
             }
         }
         .frame(width: size, height: size)
-        .reload(on: channel.id + "\(useLogoDB)\(preferLogoDB)") {
+        .reload(on: channel.id + "\(useLogoDB)\(preferLogoDB)\(epgVersion)") {
             image = nil
             let own = channel.logo.flatMap { $0.isEmpty ? nil : $0 }
             if !preferLogoDB, let own { image = await LogoCache.shared.image(for: own) }
+            if image == nil, let ic = EPGService.icon(forName: channel.tvgName ?? channel.name) {
+                image = await LogoCache.shared.image(for: ic)
+            }
             if image == nil, useLogoDB || preferLogoDB,
                let db = await LogoDatabase.shared.logoURL(name: channel.name, tvgId: channel.tvgId, tvgName: channel.tvgName) {
                 image = await LogoCache.shared.image(for: db)

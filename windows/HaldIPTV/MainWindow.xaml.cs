@@ -83,6 +83,8 @@ public partial class MainWindow : Window
 
     void Localize()
     {
+        Title = Loc.T("Телевизор");
+        BrandText.Text = Loc.T("Телевизор");
         LblPlaylist.Text = Loc.T("Плейлист").ToUpperInvariant();
         BtnAdd.Content = "+ " + Loc.T("Добавить");
         BtnEdit.ToolTip = Loc.T("Изменить");
@@ -238,7 +240,7 @@ public partial class MainWindow : Window
         var existing = _playlists.FirstOrDefault(p => p.Source == url);
         if (existing == null)
         {
-            existing = new Playlist { Name = "IPTV Pro Max", Source = url };
+            existing = new Playlist { Name = Loc.T("Телевизор"), Source = url };
             _playlists.Add(existing);
             SavePlaylists();
             PlaylistBox.Items.Refresh();
@@ -573,7 +575,7 @@ public partial class MainWindow : Window
 
     string RecordingsFolder => Settings.RecordingsFolder.Length > 0
         ? Settings.RecordingsFolder
-        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "IPTV Pro Max");
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), Loc.T("Телевизор"));
 
     void Rec_Click(object s, RoutedEventArgs e) => ToggleRecording();
 

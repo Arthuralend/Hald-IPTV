@@ -32,15 +32,15 @@ jobs:
           xcodebuild -workspace HaldIPTV.xcworkspace -scheme HaldIPTV -configuration Release \
             -derivedDataPath build ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build | tail -60
-          test -x "build/Build/Products/Release/IPTV Pro Max.app/Contents/MacOS/IPTV Pro Max"
+          test -x "build/Build/Products/Release/TV.app/Contents/MacOS/TV"
       - name: Package
         run: |
           mkdir -p dist
-          APP="build/Build/Products/Release/IPTV Pro Max.app"
+          APP="build/Build/Products/Release/TV.app"
           codesign --force --deep -s - "$APP"
           ditto -c -k --keepParent "$APP" "dist/IPTV-Pro-Max-macOS.zip"
-          create-dmg --volname "IPTV Pro Max" --app-drop-link 450 180 --window-size 640 380 \
-            "dist/IPTV-Pro-Max.dmg" "$APP" || hdiutil create -volname "IPTV Pro Max" -srcfolder "$APP" -ov -format UDZO dist/IPTV-Pro-Max.dmg
+          create-dmg --volname "TV" --app-drop-link 450 180 --window-size 640 380 \
+            "dist/IPTV-Pro-Max.dmg" "$APP" || hdiutil create -volname "TV" -srcfolder "$APP" -ov -format UDZO dist/IPTV-Pro-Max.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: macos

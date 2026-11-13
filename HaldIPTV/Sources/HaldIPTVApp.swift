@@ -6,7 +6,7 @@ struct HaldIPTVApp: App {
     @StateObject private var player = PlayerController()
 
     var body: some Scene {
-        WindowGroup("IPTV Pro Max") {
+        WindowGroup(L("Телевизор")) {
             ContentView()
                 .environmentObject(store)
                 .environmentObject(player)

@@ -30,6 +30,7 @@ enum class Screen { Home, Player, Settings }
 
 /** All app state in one place (single-activity app). */
 class AppState(ctx: Context) {
+    private val appCtx = ctx
     val prefs = Prefs(ctx)
     val repo = Repository(ctx, prefs)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -44,18 +45,38 @@ class AppState(ctx: Context) {
     var screen by mutableStateOf(if (prefs.source.isEmpty()) Screen.Settings else Screen.Home)
     var current by mutableStateOf<Channel?>(null)
     var toast by mutableStateOf<String?>(null)
+    var epgVersion by mutableIntStateOf(0)
+    private var epgJob: Job? = null
     private var toastJob: Job? = null
 
     /** channels the player zaps through (the section it was started from) */
     var playList: List<Channel> = emptyList()
 
-    init { if (prefs.source.isNotEmpty()) reload() }
+    init {
+        if (channels.isNotEmpty()) loadEpg()
+        if (prefs.source.isNotEmpty()) reload()
+    }
+
+    /** TV guide: iLook TV source first, a spare one second; guide icons fill in missing logos. */
+    fun loadEpg() {
+        epgJob?.cancel()
+        val list = channels
+        epgJob = scope.launch {
+            if (Epg.load(appCtx, list, Epg.defaultSources)) {
+                val icons = Epg.icons
+                if (icons.isNotEmpty() && channels === list) {
+                    channels = list.map { c -> if (c.logo == null) icons[c.id]?.let { c.copy(logo = it) } ?: c else c }
+                }
+                epgVersion++
+            }
+        }
+    }
 
     fun reload() {
         loading = true
         error = null
         scope.launch {
-            try { channels = repo.load() }
+            try { channels = repo.load(); loadEpg() }
             catch (e: Exception) { error = L.t("Не удалось загрузить список: ") + (e.message ?: e.javaClass.simpleName) }
             loading = false
         }
@@ -203,6 +224,15 @@ class PlayerCtl(ctx: Context, private val app: AppState) {
     }
 
     fun goLive() { val c = app.current ?: return; archiveStart = null; open(c, true) }
+
+    /** play a past programme from its start (provider archive) */
+    fun playFrom(c: Channel, startSec: Long) {
+        if (c.days <= 0) { app.showToast(L.t("Архив недоступен")); return }
+        if (app.current?.id != c.id) { app.current = c; app.markPlayed(c) }
+        archiveStart = startSec
+        retries = 0
+        open(c, true)
+    }
 
     fun toggle() { if (exo.isPlaying) exo.pause() else exo.play() }
 

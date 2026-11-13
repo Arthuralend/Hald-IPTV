@@ -82,10 +82,7 @@ fun HomeScreen(app: AppState, player: PlayerCtl) {
             Row(Modifier.padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(44.dp))
                 Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("IPTV", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = C.Text)
-                    Text("Pro Max", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.Orange)
-                }
+                Text(L.t("Телевизор"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = C.Text)
             }
             Spacer(Modifier.height(18.dp))
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
@@ -272,6 +269,7 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
     val ch = app.current ?: run { app.screen = Screen.Home; return }
     var listOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+    var guideOpen by remember { mutableStateOf(false) }
     var infoUntil by remember { mutableLongStateOf(System.currentTimeMillis() + 5000) }
     var digits by remember { mutableStateOf("") }
     var longHandled by remember { mutableStateOf(false) }
@@ -298,6 +296,7 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
 
     BackHandler {
         when {
+            guideOpen -> guideOpen = false
             listOpen -> listOpen = false
             menuOpen -> menuOpen = false
             else -> { player.exo.stop(); app.screen = Screen.Home }
@@ -308,7 +307,7 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
         Modifier.fillMaxSize().background(Color.Black)
             .focusRequester(rootFocus)
             .onPreviewKeyEvent { ev ->
-                if (listOpen || menuOpen) return@onPreviewKeyEvent false
+                if (listOpen || menuOpen || guideOpen) return@onPreviewKeyEvent false
                 val code = ev.nativeKeyEvent.keyCode
                 if (ev.type == KeyEventType.KeyDown) {
                     when (code) {
@@ -368,7 +367,7 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
         }
 
         val tick = player.tick
-        val showBar = !listOpen && !menuOpen && (System.currentTimeMillis() < infoUntil || !player.playing)
+        val showBar = !listOpen && !menuOpen && !guideOpen && (System.currentTimeMillis() < infoUntil || !player.playing)
         AnimatedVisibility(showBar, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
             InfoBar(ch, player, tick)
         }
@@ -378,7 +377,12 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
         }
 
         AnimatedVisibility(menuOpen, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
-            ControlMenu(app, player, ch, onClose = { menuOpen = false })
+            ControlMenu(app, player, ch, onClose = { menuOpen = false }, onGuide = { menuOpen = false; guideOpen = true })
+        }
+
+        AnimatedVisibility(guideOpen, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(),
+            modifier = Modifier.align(Alignment.CenterEnd)) {
+            GuidePanel(app, player, ch, onClose = { guideOpen = false })
         }
     }
 }
@@ -399,7 +403,15 @@ private fun InfoBar(ch: Channel, player: PlayerCtl, tick: Long) {
                     Spacer(Modifier.width(12.dp))
                     Text(ch.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(ch.group, color = C.Dim, fontSize = 16.sp)
+                val (now, next) = remember(ch.id, tick / 30) { Epg.nowNext(ch.id) }
+                if (now != null) {
+                    Text("${hhmm(now.start)}–${hhmm(now.stop)}  ${now.title}", color = Color.White, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Box(Modifier.padding(top = 6.dp).width(360.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth(now.progress()).background(C.Orange))
+                    }
+                    if (next != null) Text(L.t("Далее:") + " ${hhmm(next.start)} ${next.title}", color = C.Dim, fontSize = 14.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                } else Text(ch.group, color = C.Dim, fontSize = 16.sp)
             }
             LiveBadge(player, tick)
         }
@@ -461,8 +473,14 @@ private fun SideList(app: AppState, player: PlayerCtl, ch: Channel, onClose: () 
                         Text("${c.number}", fontSize = 14.sp, modifier = Modifier.width(48.dp), color = LocalContentColor.current.copy(alpha = .7f))
                         ChannelLogo(c, 44.dp, Modifier.size(44.dp))
                         Spacer(Modifier.width(14.dp))
-                        Text(c.name, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                            fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
+                        Column(Modifier.weight(1f)) {
+                            Text(c.name, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
+                            Epg.nowNext(c.id).first?.let {
+                                Text(it.title, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    color = LocalContentColor.current.copy(alpha = .65f))
+                            }
+                        }
                         if (c.id in app.favorites) Text("★", color = if (isCur) Color.White else C.Orange)
                     }
                 }
@@ -472,7 +490,7 @@ private fun SideList(app: AppState, player: PlayerCtl, ch: Channel, onClose: () 
 }
 
 @Composable
-private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: () -> Unit) {
+private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: () -> Unit, onGuide: () -> Unit) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(60); runCatching { focus.requestFocus() } }
     Column(
@@ -495,6 +513,7 @@ private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: 
             MenuButton("5:00 »") { player.seekBy(300) }
             MenuButton("● " + L.t("ЭФИР")) { player.goLive() }
             MenuButton(if (ch.id in app.favorites) "★" else "☆") { app.toggleFav(ch) }
+            MenuButton("☰ " + L.t("Телепрограмма")) { onGuide() }
         }
     }
     BackHandler { onClose() }
@@ -529,7 +548,7 @@ fun SettingsScreen(app: AppState) {
         ) {
             androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(180.dp))
             Spacer(Modifier.height(18.dp))
-            Text("IPTV Pro Max", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = C.Text)
+            Text(L.t("Телевизор"), fontSize = 30.sp, fontWeight = FontWeight.Bold, color = C.Text)
         }
         Column(Modifier.weight(1f).padding(64.dp), verticalArrangement = Arrangement.Center) {
             Text(L.t("Настройки"), fontSize = 36.sp, fontWeight = FontWeight.Bold, color = C.Text)
@@ -556,6 +575,73 @@ fun SettingsScreen(app: AppState) {
                 }
             }
             app.error?.let { Spacer(Modifier.height(16.dp)); Text(it, color = Color(0xFFFF7A6A), fontSize = 15.sp) }
+        }
+    }
+}
+
+
+fun hhmm(sec: Long): String {
+    val c = java.util.Calendar.getInstance(); c.timeInMillis = sec * 1000
+    return "%02d:%02d".format(c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE))
+}
+
+private fun dayLabel(sec: Long): String {
+    val c = java.util.Calendar.getInstance(); c.timeInMillis = sec * 1000
+    return "%02d.%02d".format(c.get(java.util.Calendar.DAY_OF_MONTH), c.get(java.util.Calendar.MONTH) + 1)
+}
+
+/** TV guide for the channel: past programmes start from the archive. */
+@Composable
+private fun GuidePanel(app: AppState, player: PlayerCtl, ch: Channel, onClose: () -> Unit) {
+    val now = System.currentTimeMillis() / 1000
+    val list = remember(ch.id, app.epgVersion) {
+        Epg.schedule(ch.id).filter { it.stop > now - 2 * 86400 && it.start < now + 86400 }
+    }
+    val cur = list.indexOfFirst { it.start <= now && it.stop > now }.let { if (it < 0) 0 else it }
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = (cur - 4).coerceAtLeast(0))
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { delay(60); runCatching { focus.requestFocus() } }
+    BackHandler { onClose() }
+
+    Column(
+        Modifier.width(560.dp).fillMaxHeight()
+            .background(Brush.horizontalGradient(listOf(Color(0xE0141516), Color(0xF5141516))))
+            .padding(top = 28.dp)
+            .onPreviewKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.keyCode == AKey.KEYCODE_DPAD_RIGHT) { onClose(); true } else false
+            }
+    ) {
+        Text(L.t("Телепрограмма"), color = C.Orange, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 28.dp))
+        Text(ch.name, color = C.Dim, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp))
+        if (list.isEmpty()) {
+            Text(L.t("Нет телепрограммы для этого канала"), color = C.Dim, fontSize = 18.sp, modifier = Modifier.padding(28.dp))
+            Box(Modifier.size(1.dp).focusRequester(focus).focusable())
+        } else LazyColumn(state = state, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
+            itemsIndexed(list) { i, p ->
+                val past = p.stop <= now
+                val isNow = i == cur && p.start <= now
+                val canWatch = ch.days > 0 && p.start <= now && p.start >= now - ch.days * 86400L
+                Surface(
+                    onClick = { if (canWatch) { player.playFrom(ch, p.start); onClose() } else if (!past) app.showToast(L.t("Передача ещё не началась")) else app.showToast(L.t("Архив недоступен")) },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).then(if (i == cur) Modifier.focusRequester(focus) else Modifier),
+                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = if (isNow) C.OrangeSoft else Color.Transparent, contentColor = C.Text,
+                        focusedContainerColor = C.Orange, focusedContentColor = Color.White),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.width(70.dp)) {
+                            Text(hhmm(p.start), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                            Text(dayLabel(p.start), fontSize = 11.sp, color = LocalContentColor.current.copy(alpha = .55f))
+                        }
+                        Text(p.title, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                            color = if (past && !canWatch) LocalContentColor.current.copy(alpha = .5f) else LocalContentColor.current)
+                        if (canWatch) Text(if (isNow) "⏮" else "▶", fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
         }
     }
 }

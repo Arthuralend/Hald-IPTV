@@ -37,11 +37,11 @@ actor LogoDatabase {
         "і": "i", "ї": "yi", "є": "ye", "ґ": "g",
     ]
 
-    private static func isCountry(_ w: String) -> Bool {
+    nonisolated static func isCountry(_ w: String) -> Bool {
         w.count == 2 && w.unicodeScalars.allSatisfy { $0.value >= 97 && $0.value <= 122 }
     }
 
-    private static func rawWords(_ s: String) -> [String] {
+    nonisolated static func rawWords(_ s: String) -> [String] {
         var t = s.lowercased().replacingOccurrences(of: "ё", with: "е")
         t = t.replacingOccurrences(of: #"\[[^\]]*\]|\([^)]*\)"#, with: " ", options: .regularExpression)
         t = t.replacingOccurrences(of: #"\s\+\s*\d+.*$"#, with: " ", options: .regularExpression)
@@ -50,20 +50,20 @@ actor LogoDatabase {
             .map { $0 == "+" ? "plus" : $0 }
     }
 
-    private static func words(_ s: String) -> [String] {
+    nonisolated static func words(_ s: String) -> [String] {
         var w = rawWords(s)
         while w.count > 1, let last = w.last, quality.contains(last) || isCountry(last) { w.removeLast() }
         if w.count > 1, w[0] == "vf" { w.removeFirst() }
         return w
     }
 
-    private static func join(_ w: [String]) -> String {
+    nonisolated static func join(_ w: [String]) -> String {
         String(w.joined().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "_" })
     }
 
-    private static func translit(_ s: String) -> String { s.map { tr[$0] ?? String($0) }.joined() }
+    nonisolated static func translit(_ s: String) -> String { s.map { tr[$0] ?? String($0) }.joined() }
 
-    private static func keys(_ name: String) -> [String] {
+    nonisolated static func keys(_ name: String) -> [String] {
         let w = words(name)
         var out = [join(w)]
         let g = w.filter { !generic.contains($0) }

@@ -22,8 +22,9 @@ targets:
       properties:
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, ru]
-        CFBundleDisplayName: IPTV Pro Max
-        CFBundleName: IPTV Pro Max
+        CFBundleDisplayName: TV
+        LSHasLocalizedDisplayName: true
+        CFBundleName: TV
         LSApplicationCategoryType: public.app-category.entertainment
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
@@ -31,7 +32,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.arthuralend.HaldIPTV
-        PRODUCT_NAME: IPTV Pro Max
+        PRODUCT_NAME: TV
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: NO

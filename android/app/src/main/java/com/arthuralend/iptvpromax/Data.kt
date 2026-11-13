@@ -44,7 +44,7 @@ object L {
         "Неверный пароль" to "Wrong password", "Обновить список" to "Refresh list",
         "Продолжить просмотр" to "Continue watching", "Добавлено в избранное" to "Added to favorites",
         "Убрано из избранного" to "Removed from favorites", "Источник" to "Source",
-        "Подключено" to "Connected",
+        "Подключено" to "Connected", "Телевизор" to "TV", "Телепрограмма" to "TV guide", "Далее:" to "Next:", "Нет телепрограммы для этого канала" to "No TV guide for this channel", "Передача ещё не началась" to "Not started yet",
     )
     fun t(s: String) = if (ru) s else en[s] ?: s
 }

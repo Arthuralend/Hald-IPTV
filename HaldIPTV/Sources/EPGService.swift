@@ -1,30 +1,73 @@
 import Foundation
 
-/// XMLTV loader (supports .xml and .xml.gz)
+/// TV guide (XMLTV, .xml or .xml.gz). Channels are matched by tvg-id or by normalized name,
+/// the same normalization as the logo index ("Первый канал HD" == "Первый канал").
 final class EPGService {
+    /// Default sources used when the playlist does not name one (the iLook TV guide first).
+    static let defaultSources = [
+        "http://epg.it999.ru/epg2.xml.gz",
+        "https://iptvx.one/epg/epg.xml.gz",
+    ]
+
     /// channel key -> programmes sorted by start
     private(set) var programmes: [String: [Programme]] = [:]
-    /// lowercased display-name -> channel id
+    /// normalized display-name -> xmltv channel id
     private(set) var nameIndex: [String: String] = [:]
+    /// channel icons from the guide (normalized name -> url), used as logos
+    private static var icons: [String: String] = [:]
+    private static let lock = NSLock()
+
+    static func icon(forName name: String) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        for k in LogoDatabase.keys(name) { if let u = icons[k] { return u } }
+        return nil
+    }
+
+    private let cacheDir: URL = {
+        let d = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("HaldIPTV/epg", isDirectory: true)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }()
+
+    /// Loads the first source that works.
+    func load(from sources: [String], userAgent: String?) async throws {
+        var lastError: Error = URLError(.badURL)
+        for s in sources {
+            do { try await load(from: s, userAgent: userAgent); return } catch { lastError = error }
+        }
+        throw lastError
+    }
 
     func load(from urlString: String, userAgent: String?) async throws {
-        guard let url = URL(string: urlString) else { return }
-        var req = URLRequest(url: url, timeoutInterval: 120)
-        if let ua = userAgent, !ua.isEmpty { req.setValue(ua, forHTTPHeaderField: "User-Agent") }
-        var (data, _) = try await URLSession.shared.fetch(req)
-        if data.count > 2, data[0] == 0x1f, data[1] == 0x8b {
-            data = try Self.gunzip(data)
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+        let cache = cacheDir.appendingPathComponent(String(urlString.hashValue & 0x7fffffff) + ".xml")
+        var data: Data
+        let attrs = try? FileManager.default.attributesOfItem(atPath: cache.path)
+        if let m = attrs?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 8 * 3600,
+           let d = try? Data(contentsOf: cache) {
+            data = d
+        } else {
+            var req = URLRequest(url: url, timeoutInterval: 180)
+            req.setValue(userAgent?.isEmpty == false ? userAgent! : "Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+            data = try await URLSession.shared.fetch(req).0
+            if data.count > 2, data[0] == 0x1f, data[1] == 0x8b { data = try Self.gunzip(data) }
+            guard data.count > 1000 else { throw URLError(.cannotParseResponse) }
+            try? data.write(to: cache)
         }
-        let parser = XMLTVParser()
-        let result = parser.parse(data)
-        programmes = result.0
-        nameIndex = result.1
+        let result = await Task.detached(priority: .utility) { XMLTVParser().parse(data) }.value
+        guard !result.programmes.isEmpty else { throw URLError(.cannotParseResponse) }
+        programmes = result.programmes
+        nameIndex = result.names
+        Self.lock.lock(); Self.icons = result.icons; Self.lock.unlock()
     }
 
     func schedule(for channel: Channel) -> [Programme] {
         if let id = channel.tvgId, !id.isEmpty, let p = programmes[id] { return p }
-        for key in [channel.tvgName, channel.name].compactMap({ $0?.lowercased() }) {
-            if let id = nameIndex[key], let p = programmes[id] { return p }
+        for n in [channel.tvgName, channel.name].compactMap({ $0 }) {
+            for k in LogoDatabase.keys(n) {
+                if let id = nameIndex[k], let p = programmes[id] { return p }
+            }
         }
         return []
     }
@@ -54,8 +97,13 @@ final class EPGService {
 }
 
 private final class XMLTVParser: NSObject, XMLParserDelegate {
+    struct Result { var programmes: [String: [Programme]]; var names: [String: String]; var icons: [String: String] }
+
     private var programmes: [String: [Programme]] = [:]
     private var names: [String: String] = [:]
+    private var icons: [String: String] = [:]
+    private var channelIcon: [String: String] = [:]
+    private var channelNames: [String: [String]] = [:]
     private var currentChannelId: String?
     private var progChannel: String?
     private var progStart: Date?
@@ -63,8 +111,8 @@ private final class XMLTVParser: NSObject, XMLParserDelegate {
     private var title = ""
     private var desc = ""
     private var text = ""
-    private let windowStart = Date().addingTimeInterval(-6 * 3600)
-    private let windowEnd = Date().addingTimeInterval(36 * 3600)
+    private let windowStart = Date().addingTimeInterval(-7 * 86400)   // archive up to a week back
+    private let windowEnd = Date().addingTimeInterval(2 * 86400)
 
     private static let formatter: DateFormatter = {
         let f = DateFormatter()
@@ -85,12 +133,20 @@ private final class XMLTVParser: NSObject, XMLParserDelegate {
         return formatter.date(from: s) ?? formatterNoTZ.date(from: String(s.prefix(14)))
     }
 
-    func parse(_ data: Data) -> ([String: [Programme]], [String: String]) {
+    func parse(_ data: Data) -> Result {
         let p = XMLParser(data: data)
         p.delegate = self
         p.parse()
         for k in programmes.keys { programmes[k]?.sort { $0.start < $1.start } }
-        return (programmes, names)
+        for (id, ns) in channelNames {
+            for n in ns {
+                for k in LogoDatabase.keys(n) {
+                    if names[k] == nil { names[k] = id }
+                    if let ic = channelIcon[id], icons[k] == nil { icons[k] = ic }
+                }
+            }
+        }
+        return Result(programmes: programmes, names: names, icons: icons)
     }
 
     func parser(_ parser: XMLParser, didStartElement el: String, namespaceURI: String?,
@@ -98,6 +154,8 @@ private final class XMLTVParser: NSObject, XMLParserDelegate {
         text = ""
         switch el {
         case "channel": currentChannelId = a["id"]
+        case "icon":
+            if let id = currentChannelId, let src = a["src"], !src.isEmpty, channelIcon[id] == nil { channelIcon[id] = src }
         case "programme":
             progChannel = a["channel"]; progStart = Self.date(a["start"]); progStop = Self.date(a["stop"])
             title = ""; desc = ""
@@ -111,7 +169,7 @@ private final class XMLTVParser: NSObject, XMLParserDelegate {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         switch el {
         case "display-name":
-            if let id = currentChannelId, !t.isEmpty { names[t.lowercased()] = id }
+            if let id = currentChannelId, !t.isEmpty { channelNames[id, default: []].append(t) }
         case "channel": currentChannelId = nil
         case "title": if progChannel != nil, title.isEmpty { title = t }
         case "desc": if progChannel != nil, desc.isEmpty { desc = t }

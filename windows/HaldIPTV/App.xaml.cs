@@ -9,7 +9,7 @@ public partial class App : Application
         LibVLCSharp.Shared.Core.Initialize();
         DispatcherUnhandledException += (_, args) =>
         {
-            MessageBox.Show(args.Exception.Message, "IPTV Pro Max", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(args.Exception.Message, Loc.T("Телевизор"), MessageBoxButton.OK, MessageBoxImage.Warning);
             args.Handled = true;
         };
         base.OnStartup(e);

@@ -100,7 +100,7 @@ struct ContentView: View {
             }
             .background(Theme.panel)
         }
-        .navigationTitle("IPTV Pro Max")
+        .navigationTitle(L("Телевизор"))
         .navigationSubtitle((sidebar ?? .all).title)
         .toolbar {
                     ToolbarItemGroup {
@@ -274,6 +274,7 @@ struct PlayerPane: View {
     @State private var hover = false
     @State private var lastMove = Date()
     @State private var onTop = false
+    @State private var showGuide = false
 
     var showControls: Bool {
         guard store.current != nil else { return false }
@@ -408,6 +409,12 @@ struct PlayerPane: View {
                     Image(systemName: "backward.to.line")
                 }.help(L("С начала передачи"))
             }
+            Button { showGuide.toggle() } label: { Image(systemName: "list.bullet.rectangle") }
+                .help(L("Телепрограмма"))
+                .popover(isPresented: $showGuide, arrowEdge: .bottom) {
+                    ScheduleList(channel: c) { showGuide = false }
+                        .environmentObject(store).environmentObject(player)
+                }
             Button { player.goLive() } label: {
                 HStack(spacing: 5) {
                     Circle().fill(player.isLive ? Theme.orange : Color.gray).frame(width: 8, height: 8)
@@ -525,5 +532,72 @@ struct SettingsView: View {
         .fileImporter(isPresented: $pick, allowedContentTypes: [.folder]) { r in
             if case .success(let url) = r { recordingsFolder = url.path }
         }
+    }
+}
+
+
+/// Today's TV guide for a channel; past programmes play from the archive.
+struct ScheduleList: View {
+    @EnvironmentObject var store: AppStore
+    @EnvironmentObject var player: PlayerController
+    let channel: Channel
+    let close: () -> Void
+
+    var body: some View {
+        let _ = store.epgVersion
+        let list = store.epg.schedule(for: channel)
+        let now = Date()
+        let from = Calendar.current.startOfDay(for: now).addingTimeInterval(-86400)
+        let items = list.filter { $0.stop > from && $0.start < now.addingTimeInterval(86400) }
+        let currentIndex = items.firstIndex { $0.start <= now && $0.stop > now }
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(L("Телепрограмма") + " · " + channel.name).font(.headline).padding(12)
+            Divider()
+            if items.isEmpty {
+                Text(L("Нет телепрограммы для этого канала")).foregroundColor(.secondary).padding(20)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(items.enumerated()), id: \.offset) { i, p in
+                                row(p, isNow: i == currentIndex, isPast: p.stop <= now).id(i)
+                            }
+                        }
+                    }
+                    .onAppear { if let ci = currentIndex { proxy.scrollTo(ci, anchor: .center) } }
+                }
+            }
+        }
+        .frame(width: 420, height: 460)
+    }
+
+    private func row(_ p: Programme, isNow: Bool, isPast: Bool) -> some View {
+        let canWatch = channel.hasArchive && (isPast || isNow)
+        return Button {
+            guard canWatch else { return }
+            player.playArchive(channel, from: p.start)
+            close()
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Text(Self.time(p.start)).font(Font.body.monospacedDigit()).foregroundColor(isNow ? Theme.orange : .secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(p.title).fontWeight(isNow ? .bold : .regular).lineLimit(2)
+                    if isNow { ProgressView(value: p.progress()).accentColor(Theme.orange) }
+                }
+                Spacer()
+                if canWatch { Image(systemName: isNow ? "backward.end.fill" : "play.circle").foregroundColor(Theme.orange) }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(isNow ? Theme.orange.opacity(0.15) : Color.clear)
+            .opacity(isPast && !canWatch ? 0.5 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    static func time(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = Calendar.current.isDateInToday(d) ? "HH:mm" : "dd.MM HH:mm"
+        return f.string(from: d)
     }
 }

@@ -62,7 +62,7 @@ object LogoIndex {
     private fun join(w: List<String>) = NON_WORD.replace(w.joinToString(""), "")
     private fun translit(s: String) = buildString { s.forEach { append(TR[it] ?: it.toString()) } }
 
-    private fun keys(name: String): List<String> {
+    fun keys(name: String): List<String> {
         val w = words(name)
         val out = mutableListOf(join(w))
         val g = w.filter { it !in GENERIC }
