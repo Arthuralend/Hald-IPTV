@@ -143,13 +143,22 @@ final class AppStore: ObservableObject {
         let first = p.epgURL ?? fromPlaylist ?? UserDefaults.standard.string(forKey: "epg-\(p.id)")
         // playlist's own guide first, then the iLook TV guide and a spare source
         let sources = ([first].compactMap { $0 }.filter { !$0.isEmpty }) + EPGService.defaultSources
-        let key = sources.joined(separator: "|")
+        let key = sources.joined(separator: "|") + "#\(p.id)#\(channels.count)"
         guard epgLoadedFor != key else { return }
-        do {
-            try await epg.load(from: sources, userAgent: p.userAgent)
-            epgLoadedFor = key
-            epgVersion += 1
-        } catch { /* EPG is optional */ }
+        epgLoadedFor = key
+        // 1) show the saved guide immediately
+        let savedAt = await epg.restore(playlist: p.id)
+        if savedAt != nil { epgVersion += 1 }
+        // 2) refresh in the background when it is older than 8 hours (or missing)
+        if let savedAt, Date().timeIntervalSince(savedAt) < 8 * 3600 { return }
+        let list = channels, ua = p.userAgent, id = p.id
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.epg.refresh(from: sources, userAgent: ua, channels: list, playlist: id)
+                self.epgVersion += 1
+            } catch { self.epgLoadedFor = nil }
+        }
     }
 
     private func apply(_ list: [Channel]) {

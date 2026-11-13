@@ -15,7 +15,57 @@ final class EPGService {
     private(set) var nameIndex: [String: String] = [:]
     /// channel icons from the guide (normalized name -> url), used as logos
     private static var icons: [String: String] = [:]
+    private static var iconsById: [String: String] = [:]
     private static let lock = NSLock()
+
+    /// compact per-channel guide for the current playlist (what is shown on screen)
+    private(set) var byChannel: [String: [Programme]] = [:]
+
+    private struct Compact: Codable {
+        var savedAt: Date
+        var byChannel: [String: [Programme]]
+        var icons: [String: String]
+    }
+
+    private func compactURL(_ playlist: UUID) -> URL { cacheDir.appendingPathComponent("compact-\(playlist.uuidString).json") }
+
+    /// Instant start: restores the guide saved after the last download. Returns when it was saved.
+    @discardableResult
+    func restore(playlist: UUID) async -> Date? {
+        let url = compactURL(playlist)
+        guard let c = await Task.detached(priority: .userInitiated, operation: { () -> Compact? in
+            guard let d = try? Data(contentsOf: url) else { return nil }
+            return try? JSONDecoder().decode(Compact.self, from: d)
+        }).value else { return nil }
+        byChannel = c.byChannel
+        Self.lock.lock(); Self.iconsById = c.icons; Self.lock.unlock()
+        return c.savedAt
+    }
+
+    static func icon(forChannelId id: String) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        return iconsById[id]
+    }
+
+    /// Downloads/parses the full guide, keeps only this playlist's channels and saves them compactly.
+    func refresh(from sources: [String], userAgent: String?, channels: [Channel], playlist: UUID) async throws {
+        try await load(from: sources, userAgent: userAgent)
+        let from = Date().addingTimeInterval(-12 * 3600), to = Date().addingTimeInterval(36 * 3600)
+        var map: [String: [Programme]] = [:]
+        var iconMap: [String: String] = [:]
+        for c in channels {
+            let list = fullSchedule(for: c).filter { $0.stop > from && $0.start < to }
+            if !list.isEmpty { map[c.id] = list }
+            if let ic = Self.icon(forName: c.tvgName ?? c.name) { iconMap[c.id] = ic }
+        }
+        byChannel = map
+        Self.lock.lock(); Self.iconsById = iconMap; Self.lock.unlock()
+        let compact = Compact(savedAt: Date(), byChannel: map, icons: iconMap)
+        let url = compactURL(playlist)
+        Task.detached(priority: .utility) { if let d = try? JSONEncoder().encode(compact) { try? d.write(to: url) } }
+        // the full guide is no longer needed in memory
+        programmes = [:]; nameIndex = [:]
+    }
 
     static func icon(forName name: String) -> String? {
         lock.lock(); defer { lock.unlock() }
@@ -63,6 +113,11 @@ final class EPGService {
     }
 
     func schedule(for channel: Channel) -> [Programme] {
+        if let list = byChannel[channel.id] { return list }
+        return fullSchedule(for: channel)
+    }
+
+    private func fullSchedule(for channel: Channel) -> [Programme] {
         if let id = channel.tvgId, !id.isEmpty, let p = programmes[id] { return p }
         for n in [channel.tvgName, channel.name].compactMap({ $0 }) {
             for k in LogoDatabase.keys(n) {

@@ -76,7 +76,7 @@ struct LogoView: View {
             image = nil
             let own = channel.logo.flatMap { $0.isEmpty ? nil : $0 }
             if !preferLogoDB, let own { image = await LogoCache.shared.image(for: own) }
-            if image == nil, let ic = EPGService.icon(forName: channel.tvgName ?? channel.name) {
+            if image == nil, let ic = EPGService.icon(forChannelId: channel.id) ?? EPGService.icon(forName: channel.tvgName ?? channel.name) {
                 image = await LogoCache.shared.image(for: ic)
             }
             if image == nil, useLogoDB || preferLogoDB,

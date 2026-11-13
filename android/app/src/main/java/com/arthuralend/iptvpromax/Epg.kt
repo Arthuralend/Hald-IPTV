@@ -36,6 +36,50 @@ object Epg {
 
     fun schedule(id: String): List<Prog> = byChannel[id] ?: emptyList()
 
+    private fun compactFile(ctx: Context) = File(ctx.filesDir, "epg-compact.bin")
+
+    /** Instant start: the guide saved after the last download. Returns its age in seconds, or null. */
+    suspend fun restore(ctx: Context): Long? = withContext(Dispatchers.IO) {
+        val f = compactFile(ctx)
+        if (!f.exists()) return@withContext null
+        try {
+            java.io.DataInputStream(java.io.BufferedInputStream(f.inputStream(), 65536)).use { inp ->
+                val savedAt = inp.readLong()
+                val nCh = inp.readInt()
+                val map = HashMap<String, List<Prog>>(nCh * 2)
+                repeat(nCh) {
+                    val id = inp.readUTF()
+                    val n = inp.readInt()
+                    map[id] = List(n) { Prog(inp.readLong(), inp.readLong(), inp.readUTF()) }
+                }
+                val nIc = inp.readInt()
+                val ic = HashMap<String, String>(nIc * 2)
+                repeat(nIc) { ic[inp.readUTF()] = inp.readUTF() }
+                byChannel = map; icons = ic
+                System.currentTimeMillis() / 1000 - savedAt
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun saveCompact(ctx: Context) {
+        try {
+            val tmp = File(ctx.filesDir, "epg-compact.tmp")
+            java.io.DataOutputStream(java.io.BufferedOutputStream(tmp.outputStream(), 65536)).use { out ->
+                out.writeLong(System.currentTimeMillis() / 1000)
+                val m = byChannel
+                out.writeInt(m.size)
+                m.forEach { (id, list) ->
+                    out.writeUTF(id); out.writeInt(list.size)
+                    list.forEach { out.writeLong(it.start); out.writeLong(it.stop); out.writeUTF(it.title.take(200)) }
+                }
+                val ic = icons
+                out.writeInt(ic.size)
+                ic.forEach { (k, v) -> out.writeUTF(k); out.writeUTF(v) }
+            }
+            tmp.renameTo(compactFile(ctx))
+        } catch (_: Exception) {}
+    }
+
     suspend fun load(ctx: Context, channels: List<Channel>, sources: List<String>): Boolean = withContext(Dispatchers.IO) {
         // normalized name -> our channel ids
         val keyToIds = HashMap<String, MutableList<String>>()
@@ -44,7 +88,7 @@ object Epg {
             try {
                 val file = download(ctx, src)
                 val ok = parse(file, keyToIds)
-                if (ok) return@withContext true
+                if (ok) { saveCompact(ctx); return@withContext true }
             } catch (_: Exception) {}
         }
         false
@@ -74,7 +118,7 @@ object Epg {
 
     private fun parse(f: File, keyToIds: Map<String, List<String>>): Boolean {
         val now = System.currentTimeMillis() / 1000
-        val from = now - 7 * 86400; val to = now + 2 * 86400
+        val from = now - 12 * 3600; val to = now + 36 * 3600
         val xmlToOurs = HashMap<String, List<String>>()
         val iconOf = HashMap<String, String>()
         val progs = HashMap<String, MutableList<Prog>>()

@@ -64,13 +64,22 @@ class AppState(ctx: Context) {
         epgJob?.cancel()
         val list = channels
         epgJob = scope.launch {
+            // 1) saved guide at once
+            val age = Epg.restore(appCtx)
+            if (age != null) { applyEpgIcons(list); epgVersion++ }
+            // 2) fresh download only when older than 8 hours
+            if (age != null && age < 8 * 3600) return@launch
             if (Epg.load(appCtx, list, Epg.defaultSources)) {
-                val icons = Epg.icons
-                if (icons.isNotEmpty() && channels === list) {
-                    channels = list.map { c -> if (c.logo == null) icons[c.id]?.let { c.copy(logo = it) } ?: c else c }
-                }
+                applyEpgIcons(list)
                 epgVersion++
             }
+        }
+    }
+
+    private fun applyEpgIcons(list: List<Channel>) {
+        val icons = Epg.icons
+        if (icons.isNotEmpty() && channels === list) {
+            channels = list.map { c -> if (c.logo == null) icons[c.id]?.let { c.copy(logo = it) } ?: c else c }
         }
     }
 
