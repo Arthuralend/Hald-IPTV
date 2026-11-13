@@ -600,6 +600,10 @@ private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: 
             MenuButton(if (player.playing) "❚❚" else "▶", Modifier.focusRequester(focus)) { player.toggle() }
             MenuButton(if (ch.id in app.favorites) "★" else "☆") { app.toggleFav(ch) }
             MenuButton("☰ " + L.t("Телепрограмма")) { onGuide() }
+            MenuButton("🔊 " + L.t("Звук")) {
+                val label = player.nextAudioTrack()
+                app.showToast(if (label == null) L.t("У канала одна звуковая дорожка") else L.t("Звуковая дорожка") + ": " + label)
+            }
             MenuButton("▤ " + L.t("Каналы")) { onList() }
             MenuButton("✕") { onExit() }
         }

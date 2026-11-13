@@ -41,6 +41,8 @@ jobs:
           echo "KEYSTORE_PASS=$P" >> "$GITHUB_ENV"
       - name: Refresh logo index (iptv-org)
         run: python3 tools/gen_logo_index.py || echo "using bundled index"
+      - name: Available FFmpeg decoder versions (diagnostics)
+        run: curl -fsS https://repo1.maven.org/maven2/org/jellyfin/media3/media3-ffmpeg-decoder/maven-metadata.xml | grep -o "<version>[^<]*" | tail -8 || true
       - name: Build APK
         working-directory: android
         run: gradle assembleRelease --no-daemon --stacktrace -q

@@ -60,6 +60,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
     implementation("androidx.media3:media3-ui:$media3")
+    // FFmpeg audio decoder (AC-3, E-AC-3, DTS, MP2…) for boxes without Dolby decoding
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:$media3+1")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-svg:2.7.0")

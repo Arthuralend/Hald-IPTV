@@ -19,6 +19,12 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.audio.AudioCapabilities
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -151,6 +157,7 @@ class AppState(ctx: Context) {
 }
 
 /** ExoPlayer wrapper: direct-from-provider first, server proxy as fallback, archive/rewind. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class PlayerCtl(ctx: Context, private val app: AppState) {
     private val http = DefaultHttpDataSource.Factory()
         .setUserAgent(Sources.UA)
@@ -158,7 +165,20 @@ class PlayerCtl(ctx: Context, private val app: AppState) {
         .setConnectTimeoutMs(10000)
         .setReadTimeoutMs(15000)
 
-    val exo: ExoPlayer = ExoPlayer.Builder(ctx)
+    /**
+     * Sound: never pass Dolby (AC-3/E-AC-3) through HDMI as-is — boxes like the Mi Box S then play
+     * silence or noise when the TV does not take it. Everything is decoded to plain PCM stereo;
+     * formats the box has no decoder for are decoded by FFmpeg.
+     */
+    private val renderers = object : DefaultRenderersFactory(ctx) {
+        override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
+            DefaultAudioSink.Builder(context)
+                .setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                .build()
+    }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+        .setEnableDecoderFallback(true)
+
+    val exo: ExoPlayer = ExoPlayer.Builder(ctx, renderers)
         .setLoadControl(
             DefaultLoadControl.Builder()
                 // start fast: begin playback after 1.5 s of buffer
@@ -243,6 +263,19 @@ class PlayerCtl(ctx: Context, private val app: AppState) {
         archiveStart = startSec
         retries = 0
         open(c, true)
+    }
+
+    /** switches to the next audio track; returns its label (null when there is only one) */
+    fun nextAudioTrack(): String? {
+        val groups = exo.currentTracks.groups.filter { it.type == MC.TRACK_TYPE_AUDIO && it.isSupported }
+        if (groups.size < 2) return null
+        val cur = groups.indexOfFirst { it.isSelected }
+        val next = groups[(cur + 1) % groups.size]
+        exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+            .setOverrideForType(TrackSelectionOverride(next.mediaTrackGroup, 0))
+            .build()
+        val f = next.getTrackFormat(0)
+        return listOfNotNull(f.label, f.language, f.sampleMimeType?.substringAfter('/')).joinToString(" · ").ifEmpty { "${(cur + 1) % groups.size + 1}" }
     }
 
     fun toggle() { if (exo.isPlaying) exo.pause() else exo.play() }
