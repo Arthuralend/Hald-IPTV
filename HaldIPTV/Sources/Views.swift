@@ -458,7 +458,7 @@ struct PlaylistEditor: View {
             Form {
                 TextField(L("Название"), text: $name)
                 HStack {
-                    TextField(L("Ссылка M3U / M3U8"), text: $source)
+                    TextField(L("Ссылка M3U / M3U8 или промокод"), text: $source)
                     Button(L("Файл…")) { pickFile = true }
                 }
                 TextField(L("EPG (XMLTV), необязательно"), text: $epg)
@@ -493,6 +493,12 @@ struct PlaylistEditor: View {
 
     func save() {
         let src = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        // promo code typed into the link field
+        if src == Preset.code && playlist == nil {
+            dismiss()
+            store.addPresetPlaylist()
+            return
+        }
         if var p = playlist {
             p.name = name; p.source = src; p.epgURL = epg.isEmpty ? nil : epg
             p.userAgent = ua.isEmpty ? nil : ua; p.autoRefreshHours = hours

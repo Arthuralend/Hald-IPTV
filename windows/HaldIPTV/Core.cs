@@ -107,7 +107,7 @@ public static class Loc
         ["Вернуться в прямой эфир"] = "Back to live", ["ЭФИР"] = "LIVE",
         ["Предыдущий канал"] = "Previous channel", ["Следующий канал"] = "Next channel",
         ["Пауза / Продолжить"] = "Pause / Resume", ["Без звука"] = "Mute", ["Аудиодорожка"] = "Audio track",
-        ["Поверх всех окон"] = "Keep on top", ["Список"] = "List", ["Сетка"] = "Grid", ["Телевизор"] = "TV",
+        ["Поверх всех окон"] = "Keep on top", ["Список"] = "List", ["Сетка"] = "Grid", ["Ссылка M3U / M3U8, файл или промокод"] = "M3U / M3U8 URL, file or promo code", ["Телевизор"] = "TV",
         ["Встроенный плейлист не настроен в этой сборке"] = "The built-in playlist is not configured in this build",
     };
 

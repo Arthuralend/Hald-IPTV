@@ -37,8 +37,7 @@ object L {
         "Сохранить" to "Save", "Очистить недавние" to "Clear recent", "Подключение…" to "Connecting…",
         "Ошибка воспроизведения" to "Playback error", "ЭФИР" to "LIVE",
         "Архив недоступен" to "Archive not available", "С начала передачи" to "Start over",
-        "OK — список каналов · ▲▼ — переключение · ◀▶ — перемотка · долгое OK — меню" to
-            "OK — channel list · ▲▼ — zap · ◀▶ — seek · long OK — menu",
+        "◀ — список каналов · ▶ — телепрограмма · ▲▼ — переключение · OK — меню" to "◀ — channels · ▶ — TV guide · ▲▼ — zap · OK — menu",
         "Долгое нажатие OK — в избранное" to "Long press OK — add to favorites",
         "Не удалось загрузить список: " to "Could not load channels: ",
         "Неверный пароль" to "Wrong password", "Обновить список" to "Refresh list",

@@ -52,7 +52,7 @@ public class PlaylistDialog : DarkDialog
     public PlaylistDialog(Playlist? p) : base(p == null ? Loc.T("Новый плейлист") : Loc.T("Плейлист"), 540)
     {
         var name = Field(Loc.T("Название"), p?.Name ?? "");
-        var src = Field(Loc.T("Ссылка M3U / M3U8 или файл"), p?.Source ?? "");
+        var src = Field(Loc.T("Ссылка M3U / M3U8, файл или промокод"), p?.Source ?? "");
         var pick = new Button { Content = Loc.T("Файл…"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0), Style = (Style)Application.Current.Resources["FlatButton"] };
         pick.Click += (_, _) =>
         {
@@ -74,6 +74,13 @@ public class PlaylistDialog : DarkDialog
         buttons.Add((Loc.T("Сохранить"), true, (_, _) =>
         {
             if (src.Text.Trim().Length == 0) return;
+            // promo code typed into the link field
+            if (src.Text.Trim() == Preset.Code && Preset.Url is { } presetUrl)
+            {
+                var pr = p ?? new Playlist();
+                pr.Name = Loc.T("Телевизор"); pr.Source = presetUrl; pr.LastUpdated = null;
+                Result = pr; DialogResult = true; return;
+            }
             var r = p ?? new Playlist();
             r.Name = name.Text.Trim().Length > 0 ? name.Text.Trim() : $"{Loc.T("Плейлист")} {DateTime.Now:dd.MM HH:mm}";
             r.Source = src.Text.Trim();

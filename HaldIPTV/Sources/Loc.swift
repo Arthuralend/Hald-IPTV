@@ -44,6 +44,7 @@ enum Loc {
         "Новый плейлист": "New Playlist",
         "Название": "Name",
         "Ссылка M3U / M3U8": "M3U / M3U8 URL",
+        "Ссылка M3U / M3U8 или промокод": "M3U / M3U8 URL or promo code",
         "Файл…": "File…",
         "EPG (XMLTV), необязательно": "EPG (XMLTV), optional",
         "User-Agent, необязательно": "User-Agent, optional",

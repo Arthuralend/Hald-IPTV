@@ -255,7 +255,7 @@ class MainActivity : ComponentActivity() {
                 .okHttpClient {
                     okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
                         chain.proceed(chain.request().newBuilder()
-                            .header("User-Agent", "IPTVProMax/1.0 (Android TV; +https://github.com/Arthuralend/Hald-IPTV)").build())
+                            .header("User-Agent", "IPTVProMax/1.0 (Android TV; +https://github.com/Arthuralend/TV)").build())
                     }.build()
                 }
                 .crossfade(true)

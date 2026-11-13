@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # IPTV Pro Max — установка веб-версии на Ubuntu/Debian сервер.
-# Запуск:  curl -fsSL https://raw.githubusercontent.com/Arthuralend/Hald-IPTV/main/web/install.sh | sudo bash
+# Запуск:  curl -fsSL https://raw.githubusercontent.com/Arthuralend/TV/main/web/install.sh | sudo bash
 set -e
 DIR=/opt/iptv-pro-max
 if ! command -v docker >/dev/null; then
   curl -fsSL https://get.docker.com | sh
 fi
 apt-get install -y git >/dev/null 2>&1 || true
-if [ -d "$DIR/.git" ]; then git -C "$DIR" pull -q; else git clone -q --depth 1 https://github.com/Arthuralend/Hald-IPTV "$DIR"; fi
+if [ -d "$DIR/.git" ]; then git -C "$DIR" pull -q; else git clone -q --depth 1 https://github.com/Arthuralend/TV "$DIR"; fi
 cd "$DIR/web"
 mkdir -p cache && chown 1000:1000 cache
 if [ ! -f .env ]; then

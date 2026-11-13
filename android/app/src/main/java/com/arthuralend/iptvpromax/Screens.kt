@@ -396,10 +396,10 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
                     when (code) {
                         AKey.KEYCODE_DPAD_UP, AKey.KEYCODE_CHANNEL_UP -> { zap(-1); true }
                         AKey.KEYCODE_DPAD_DOWN, AKey.KEYCODE_CHANNEL_DOWN -> { zap(1); true }
-                        AKey.KEYCODE_DPAD_LEFT -> { player.seekBy(-30); showInfo(); true }
-                        AKey.KEYCODE_DPAD_RIGHT -> { player.seekBy(30); showInfo(); true }
-                        AKey.KEYCODE_MEDIA_REWIND -> { player.seekBy(-300); showInfo(); true }
-                        AKey.KEYCODE_MEDIA_FAST_FORWARD -> { player.seekBy(300); showInfo(); true }
+                        // no rewinding: ◀ opens the channel list, ▶ the TV guide of this channel
+                        AKey.KEYCODE_DPAD_LEFT -> { listOpen = true; true }
+                        AKey.KEYCODE_DPAD_RIGHT -> { guideOpen = true; true }
+                        AKey.KEYCODE_MEDIA_REWIND, AKey.KEYCODE_MEDIA_FAST_FORWARD -> true
                         AKey.KEYCODE_MEDIA_PLAY_PAUSE, AKey.KEYCODE_MEDIA_PLAY, AKey.KEYCODE_MEDIA_PAUSE, AKey.KEYCODE_SPACE -> { player.toggle(); showInfo(); true }
                         AKey.KEYCODE_MENU, AKey.KEYCODE_INFO, AKey.KEYCODE_GUIDE -> { menuOpen = true; true }
                         in AKey.KEYCODE_0..AKey.KEYCODE_9 -> { digits = (digits + (code - AKey.KEYCODE_0)).take(4); true }
@@ -412,7 +412,7 @@ fun PlayerScreen(app: AppState, player: PlayerCtl) {
                 } else if (ev.type == KeyEventType.KeyUp) {
                     when (code) {
                         AKey.KEYCODE_DPAD_CENTER, AKey.KEYCODE_ENTER, AKey.KEYCODE_NUMPAD_ENTER -> {
-                            if (!longHandled) listOpen = true
+                            if (!longHandled) menuOpen = true
                             longHandled = false
                             true
                         }
@@ -506,7 +506,7 @@ private fun InfoBar(ch: Channel, player: PlayerCtl, tick: Long) {
             LiveBadge(player, tick)
         }
         Spacer(Modifier.height(14.dp))
-        Text(L.t("OK — список каналов · ▲▼ — переключение · ◀▶ — перемотка · долгое OK — меню"), color = C.Dim, fontSize = 14.sp)
+        Text(L.t("◀ — список каналов · ▶ — телепрограмма · ▲▼ — переключение · OK — меню"), color = C.Dim, fontSize = 14.sp)
     }
 }
 
@@ -597,12 +597,7 @@ private fun ControlMenu(app: AppState, player: PlayerCtl, ch: Channel, onClose: 
         }
         Spacer(Modifier.height(22.dp))
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            MenuButton("« 5:00") { player.seekBy(-300) }
-            MenuButton("« 0:30") { player.seekBy(-30) }
             MenuButton(if (player.playing) "❚❚" else "▶", Modifier.focusRequester(focus)) { player.toggle() }
-            MenuButton("0:30 »") { player.seekBy(30) }
-            MenuButton("5:00 »") { player.seekBy(300) }
-            MenuButton("● " + L.t("ЭФИР")) { player.goLive() }
             MenuButton(if (ch.id in app.favorites) "★" else "☆") { app.toggleFav(ch) }
             MenuButton("☰ " + L.t("Телепрограмма")) { onGuide() }
             MenuButton("▤ " + L.t("Каналы")) { onList() }
@@ -740,9 +735,9 @@ private fun GuidePanel(app: AppState, player: PlayerCtl, ch: Channel, onClose: (
             itemsIndexed(list) { i, p ->
                 val past = p.stop <= now
                 val isNow = i == cur && p.start <= now
-                val canWatch = ch.days > 0 && p.start <= now && p.start >= now - ch.days * 86400L
+                val canWatch = false   // viewing only: playback from the archive is disabled
                 Surface(
-                    onClick = { if (canWatch) { player.playFrom(ch, p.start); onClose() } else if (!past) app.showToast(L.t("Передача ещё не началась")) else app.showToast(L.t("Архив недоступен")) },
+                    onClick = { if (canWatch) { player.playFrom(ch, p.start); onClose() } },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).then(if (i == cur) Modifier.focusRequester(focus) else Modifier),
                     shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
                     colors = ClickableSurfaceDefaults.colors(
@@ -756,7 +751,7 @@ private fun GuidePanel(app: AppState, player: PlayerCtl, ch: Channel, onClose: (
                             Text(dayLabel(p.start), fontSize = 11.sp, color = LocalContentColor.current.copy(alpha = .55f))
                         }
                         Text(p.title, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                            color = if (past && !canWatch) LocalContentColor.current.copy(alpha = .5f) else LocalContentColor.current)
+                            color = if (past) LocalContentColor.current.copy(alpha = .5f) else LocalContentColor.current)
                         if (canWatch) Text(if (isNow) "⏮" else "▶", fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
                     }
                 }
