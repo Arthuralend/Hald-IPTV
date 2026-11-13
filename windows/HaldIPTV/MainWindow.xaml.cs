@@ -181,19 +181,35 @@ public partial class MainWindow : Window
         }
     }
 
+    string? _epgKey;
     async Task LoadEpg(Playlist p, string? fromPlaylist)
     {
         var key = $"epg-{p.Id}.txt";
         if (fromPlaylist != null) Storage.Save(key, fromPlaylist);
-        var url = p.EpgUrl ?? fromPlaylist ?? Storage.Load<string>(key);
-        if (string.IsNullOrEmpty(url) || Epg.LoadedFrom == url) return;
+        var first = p.EpgUrl ?? fromPlaylist ?? Storage.Load<string>(key);
+        // playlist's own guide first, then the iLook TV guide and a spare source
+        var sources = new[] { first }.Where(x => !string.IsNullOrEmpty(x)).Select(x => x!).Concat(EpgService.DefaultSources).ToList();
+        var k = string.Join("|", sources) + p.Id + _channels.Count;
+        if (_epgKey == k) return;
+        _epgKey = k;
+        // 1) the saved guide appears at once
+        var age = await Epg.Restore(p.Id);
+        if (age != null) EpgUpdated();
+        // 2) fresh download only when older than 8 hours
+        if (age != null && age < TimeSpan.FromHours(8)) return;
         try
         {
-            await Epg.Load(url, p.UserAgent);
-            foreach (var vm in _visible) vm.Refresh();
-            UpdateNowNext();
+            await Epg.Refresh(sources, p.UserAgent, _channels, p.Id);
+            EpgUpdated();
         }
-        catch { /* EPG is optional */ }
+        catch { _epgKey = null; /* EPG is optional */ }
+    }
+
+    void EpgUpdated()
+    {
+        foreach (var vm in _vms.Values) vm.Refresh();
+        foreach (var vm in _vms.Values) if (!vm.HasLogo) vm.ResetLogo();
+        UpdateNowNext();
     }
 
     void Apply(List<Channel> list)

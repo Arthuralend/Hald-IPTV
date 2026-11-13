@@ -55,6 +55,7 @@ public class ChannelVM : Notifier
         var s = _w.Settings;
         ImageSource? img = null;
         if (!s.PreferLogoDb && C.Logo != null) img = await LogoCache.Get(C.Logo);
+        if (img == null && _w.Epg.Icons.TryGetValue(C.Id, out var epgIcon)) img = await LogoCache.Get(epgIcon);
         if (img == null && (s.UseLogoDb || s.PreferLogoDb))
         {
             var u = await LogoDatabase.Find(C);
@@ -67,6 +68,8 @@ public class ChannelVM : Notifier
             Raise(nameof(Logo)); Raise(nameof(PlaceholderVisibility));
         }
     }
+
+    public bool HasLogo => _logo != null;
 
     public void ResetLogo() { _requested = false; _logo = null; Raise(nameof(Logo)); Raise(nameof(PlaceholderVisibility)); }
 
