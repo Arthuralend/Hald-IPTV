@@ -488,6 +488,7 @@ private fun ChannelSheet(app: AppState, player: PlayerCtl, onClose: () -> Unit) 
 private fun MobileSettings(app: AppState) {
     var source by remember { mutableStateOf(if (app.prefs.source == Sources.PRESET) Sources.CODE else app.prefs.source) }
     var password by remember { mutableStateOf(app.prefs.password) }
+    val focus = LocalFocusManager.current
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.foundation.Image(painterResource(R.mipmap.ic_launcher), null, Modifier.size(56.dp))
@@ -501,7 +502,11 @@ private fun MobileSettings(app: AppState) {
         if (app.prefs.source.isEmpty()) Text(L.t("Откройте «Настройки» и введите код или ссылку на плейлист"), color = C.Dim)
         else Text(L.t("Подключено") + " · ${app.channels.size} ${L.t("каналов")}", color = C.Orange)
         Spacer(Modifier.height(16.dp))
-        OutlinedTextField(source, { source = it }, label = { Text(L.t("Источник")) },
+        OutlinedTextField(source, {
+                source = it
+                // promo code: save and open the channels right away
+                if (it.trim() == Sources.CODE) { focus.clearFocus(); app.saveSource(it, password) }
+            }, label = { Text(L.t("Источник")) },
             placeholder = { Text(L.t("Код или адрес сервера / ссылка M3U")) }, singleLine = true,
             modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
         Spacer(Modifier.height(12.dp))

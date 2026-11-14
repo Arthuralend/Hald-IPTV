@@ -12,6 +12,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -307,7 +309,7 @@ fun ChannelCard(ch: Channel, fav: Boolean, current: Boolean, compact: Boolean = 
 fun SmallButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.pointerInput(onClick) { detectTapGestures { onClick() } },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
         colors = ClickableSurfaceDefaults.colors(containerColor = C.Card, contentColor = C.Text,
             focusedContainerColor = C.Orange, focusedContentColor = Color.White),
@@ -649,7 +651,11 @@ fun SettingsScreen(app: AppState) {
             Text(L.t("Источник"), color = C.Dim, fontSize = 14.sp)
             Spacer(Modifier.height(6.dp))
             TvTextField(
-                if (source == Sources.PRESET) Sources.CODE else source, { source = it },
+                if (source == Sources.PRESET) Sources.CODE else source, {
+                    source = it
+                    // promo code: save and open the channels right away
+                    if (it.trim() == Sources.CODE) app.saveSource(it, password)
+                },
                 L.t("Код или адрес сервера / ссылка M3U"), Modifier.fillMaxWidth().focusRequester(focus))
             Spacer(Modifier.height(14.dp))
             TvTextField(password, { password = it }, L.t("Пароль сайта (если включён)"), Modifier.fillMaxWidth(), password = true)
