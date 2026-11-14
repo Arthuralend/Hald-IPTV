@@ -87,3 +87,8 @@ fun ChannelLogo(ch: Channel, size: Dp, modifier: Modifier = Modifier, radius: Dp
         } else fallback()
     }
 }
+
+fun hhmm(sec: Long): String {
+    val c = java.util.Calendar.getInstance(); c.timeInMillis = sec * 1000
+    return "%02d:%02d".format(c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE))
+}

@@ -43,15 +43,16 @@ jobs:
         run: python3 tools/gen_logo_index.py || echo "using bundled index"
       - name: Build APK
         working-directory: android
-        run: gradle assembleRelease --no-daemon --stacktrace -q
+        run: gradle assembleTvRelease assembleMobileRelease --no-daemon --stacktrace -q
       - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk IPTV-Pro-Max-TV.apk
+          cp android/app/build/outputs/apk/tv/release/app-tv-release.apk IPTV-Pro-Max-TV.apk
+          cp android/app/build/outputs/apk/mobile/release/app-mobile-release.apk TV-Mobile.apk
           gh release view android -R "${{ github.repository }}" >/dev/null 2>&1 || \
             gh release create android -R "${{ github.repository }}" --title "IPTV Pro Max — Android TV" \
               --notes "APK для Android TV" --latest=false
-          gh release upload android IPTV-Pro-Max-TV.apk -R "${{ github.repository }}" --clobber
+          gh release upload android IPTV-Pro-Max-TV.apk TV-Mobile.apk -R "${{ github.repository }}" --clobber
           gh release edit android -R "${{ github.repository }}" --latest=false \
-            --notes "APK для Android TV. Сборка ${{ github.run_number }} ($(date -u +%Y-%m-%d))"
+            --notes "IPTV-Pro-Max-TV.apk — Android TV; TV-Mobile.apk — телефон и планшет. Сборка ${{ github.run_number }} ($(date -u +%Y-%m-%d))"

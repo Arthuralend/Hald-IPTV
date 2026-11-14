@@ -283,33 +283,19 @@ class PlayerCtl(ctx: Context, private val app: AppState) {
     fun release() = exo.release()
 }
 
-class MainActivity : ComponentActivity() {
-    private lateinit var app: AppState
-    private lateinit var player: PlayerCtl
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // logos: SVG support + a proper User-Agent (Wikimedia rejects anonymous clients)
-        coil.Coil.setImageLoader(
-            coil.ImageLoader.Builder(applicationContext)
-                .components { add(coil.decode.SvgDecoder.Factory()) }
-                .okHttpClient {
-                    okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
-                        chain.proceed(chain.request().newBuilder()
-                            .header("User-Agent", "IPTVProMax/1.0 (Android TV; +https://github.com/Arthuralend/TV)").build())
-                    }.build()
-                }
-                .crossfade(true)
-                .respectCacheHeaders(false)
-                .build()
-        )
-        app = AppState(applicationContext)
-        player = PlayerCtl(this, app)
-        setContent { AppTheme { Root(app, player) } }
-    }
-
-    override fun onStop() { super.onStop(); player.exo.pause() }
-    override fun onStart() { super.onStart(); if (app.screen == Screen.Player) player.exo.play() }
-    override fun onDestroy() { player.release(); super.onDestroy() }
+/** Coil: SVG logos + a proper User-Agent (Wikimedia rejects anonymous clients). */
+fun setupImageLoader(ctx: Context, device: String) {
+    coil.Coil.setImageLoader(
+        coil.ImageLoader.Builder(ctx)
+            .components { add(coil.decode.SvgDecoder.Factory()) }
+            .okHttpClient {
+                okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+                    chain.proceed(chain.request().newBuilder()
+                        .header("User-Agent", "IPTVProMax/1.0 ($device; +https://github.com/Arthuralend/TV)").build())
+                }.build()
+            }
+            .crossfade(true)
+            .respectCacheHeaders(false)
+            .build()
+    )
 }
